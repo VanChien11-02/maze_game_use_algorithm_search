@@ -1,0 +1,118 @@
+# generation/maze_generator.py — Sinh mê cung 30x30 bằng DFS recursive backtracking
+"""
+Sinh mê cung hoàn hảo (Perfect Maze) bằng DFS Recursive Backtracking.
+Đảm bảo có đúng 1 đường đi giữa 2 ô bất kỳ → thuật toán luôn tìm thấy đường.
+"""
+
+import random
+from typing import List, Tuple
+from collections import deque
+
+
+def generate_maze(cols: int, rows: int, seed: int = None) -> List[List[int]]:
+    """
+    Sinh mê cung perfect maze bằng DFS Recursive Backtracking.
+    grid[r][c] = 0: tường | 1: sàn (có thể đi)
+    Cols và Rows nên là số lẻ để thuật toán hoạt động đúng.
+    """
+    if seed is not None:
+        random.seed(seed)
+
+    # Đảm bảo số lẻ
+    gc = cols if cols % 2 == 1 else cols - 1
+    gr = rows if rows % 2 == 1 else rows - 1
+
+    # Khởi tạo toàn tường
+    grid = [[0] * gc for _ in range(gr)]
+
+    def in_bounds(r, c):
+        return 0 < r < gr - 1 and 0 < c < gc - 1
+
+    def carve(r, c):
+        grid[r][c] = 1
+        dirs = [(0, 2), (0, -2), (2, 0), (-2, 0)]
+        random.shuffle(dirs)
+        for dr, dc in dirs:
+            nr, nc = r + dr, c + dc
+            if in_bounds(nr, nc) and grid[nr][nc] == 0:
+                grid[r + dr//2][c + dc//2] = 1
+                carve(nr, nc)
+
+    import sys
+    old = sys.getrecursionlimit()
+    sys.setrecursionlimit(20000)
+    carve(1, 1)
+    sys.setrecursionlimit(old)
+
+    # Điều chỉnh kích thước nếu cần
+    final = [[0] * cols for _ in range(rows)]
+    for r in range(min(gr, rows)):
+        for c in range(min(gc, cols)):
+            final[r][c] = grid[r][c]
+
+    return final
+
+
+def find_start_exit(grid: List[List[int]], rows: int, cols: int
+                    ) -> Tuple[Tuple[int,int], Tuple[int,int]]:
+    """
+    Tìm ô sàn đầu tiên (góc trên-trái) làm Start,
+    và ô sàn xa nhất (BFS) làm Goal.
+    """
+    start = None
+    for r in range(rows):
+        for c in range(cols):
+            if grid[r][c] == 1:
+                start = (r, c)
+                break
+        if start:
+            break
+    if not start:
+        start = (1, 1)
+
+    # BFS để tìm ô xa nhất từ start
+    queue = deque([(start, 0)])
+    visited = {start: 0}
+    directions = [(-1,0),(1,0),(0,-1),(0,1)]
+    farthest = start
+    max_dist = 0
+
+    while queue:
+        pos, dist = queue.popleft()
+        if dist > max_dist:
+            max_dist = dist
+            farthest = pos
+        r, c = pos
+        for dr, dc in directions:
+            nr, nc = r+dr, c+dc
+            npos = (nr, nc)
+            if (0 <= nr < rows and 0 <= nc < cols
+                    and grid[nr][nc] != 0 and npos not in visited):
+                visited[npos] = dist + 1
+                queue.append((npos, dist + 1))
+
+    return start, farthest
+
+
+def add_extra_passages(grid: List[List[int]], rows: int, cols: int,
+                        extra: int = 5) -> List[List[int]]:
+    """
+    Thêm một số đường thông để mê cung không quá tuyến tính.
+    Tạo nhiều lựa chọn đường đi → thú vị hơn khi so sánh các thuật toán.
+    """
+    walls = []
+    for r in range(1, rows - 1):
+        for c in range(1, cols - 1):
+            if grid[r][c] == 0:
+                has_h = (c > 0 and c < cols-1 and
+                         grid[r][c-1] == 1 and grid[r][c+1] == 1)
+                has_v = (r > 0 and r < rows-1 and
+                         grid[r-1][c] == 1 and grid[r+1][c] == 1)
+                if has_h or has_v:
+                    walls.append((r, c))
+
+    random.shuffle(walls)
+    for r, c in walls[:extra]:
+        grid[r][c] = 1
+
+    return grid
