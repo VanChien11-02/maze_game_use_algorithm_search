@@ -1,26 +1,39 @@
-# algorithms/__init__.py — Package thuật toán AI Maze Solver
+# algorithms/__init__.py — Registry trung tâm cho tất cả thuật toán
 """
-5 Thuật toán AI — Cùng giải bài toán tìm đường Start → Goal (30×30)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Nhóm 1 – Uninformed Search  : DFS          (dfs.py)
-Nhóm 2 – Informed Search    : A*           (astar.py)
-Nhóm 3 – Local Search       : Steepest HC  (steepest_hc.py)
-Nhóm 4 – Complex Environment: BFS-PO       (bfs_partial.py)
-Nhóm 5 – CSP                : Backtracking (backtracking.py)
+Cấu trúc thư mục thuật toán (có thể mở rộng):
 
-Để thêm thuật toán mới vào nhóm X:
-  1. Tạo file algorithms/ten_algo.py với hàm run_ten_algo(grid, start, goal, rows, cols)
-  2. Import và thêm vào ALGO_RUNNERS bên dưới
-  3. Thêm tên vào config.ALGO_GROUPS[nhomX]['algorithms']
+  algorithms/
+    uninformed/          <- Nhom 1: Uninformed Search
+      dfs.py
+      __init__.py
+    informed/            <- Nhom 2: Informed Search
+      astar.py
+      __init__.py
+    local/               <- Nhom 3: Local Search
+      steepest_hc.py
+      __init__.py
+    complex_env/         <- Nhom 4: Complex Environment
+      bfs_partial.py
+      __init__.py
+    csp/                 <- Nhom 5: CSP
+      backtracking.py
+      __init__.py
+    base.py              <- Data types chung (Step, PathResult)
+    __init__.py          <- File nay: ALGO_RUNNERS registry
+
+De them thuat toan moi vao nhom X:
+  1. Tao file algorithms/<nhom>/ten_algo.py
+  2. Import va them vao ALGO_RUNNERS ben duoi
+  3. Them vao config.ALGO_GROUPS[nhomX]['algorithms']
 """
 
-from algorithms.dfs          import run_dfs
-from algorithms.astar        import run_astar
-from algorithms.steepest_hc  import run_steepest_hc
-from algorithms.bfs_partial  import run_bfs_partial
-from algorithms.backtracking import run_backtracking
+from algorithms.uninformed.dfs      import run_dfs
+from algorithms.informed.astar      import run_astar
+from algorithms.local.steepest_hc   import run_steepest_hc
+from algorithms.complex_env.bfs_partial import run_bfs_partial
+from algorithms.csp.backtracking    import run_backtracking
 
-# Map: key (dùng trong config.ALGO_GROUPS) → hàm chạy
+# Map: key (khop voi config.ALGO_GROUPS) -> ham chay
 ALGO_RUNNERS = {
     'DFS':         run_dfs,
     'A*':          run_astar,

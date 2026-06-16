@@ -44,10 +44,10 @@ VIZ_STUCK     = (255, 100,  50)   # Steepest HC bị kẹt
 
 # HUD
 HUD_BG        = (12,  12,  24)
-HUD_BORDER    = (50,  60, 100)
-HUD_TEXT      = (200, 210, 240)
-HUD_TITLE     = (120, 180, 255)
-GOLD_COLOR    = (255, 210,  60)
+HUD_BORDER    = (55,  68, 110)
+HUD_TEXT      = (215, 225, 255)   # Sang hon de doc ro hon
+HUD_TITLE     = (130, 190, 255)   # Tieu de noi bat
+GOLD_COLOR    = (255, 215,  65)   # Vang sang
 
 # Combobox
 CB_BG         = (20,  22,  40)
