@@ -41,10 +41,15 @@ class PathResult:
     total_visited: int = 0
     found:         bool = False
     elapsed_ms:    float = 0.0
+    memory_kb:     float = 0.0
 
     @property
     def path_length(self) -> int:
         return len(self.path)
+
+    @property
+    def path_cost(self) -> int:
+        return max(0, len(self.path) - 1)
 
     @property
     def total_steps(self) -> int:

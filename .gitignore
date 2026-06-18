@@ -1,2 +1,7 @@
-# created by virtualenv automatically
+# Chặn file cấu hình môi trường thật (nếu có tạo sau này)
+.env
 
+# Chặn đống file rác cache của Python (đống đang hiện trong git status của bạn)
+**/__pycache__/
+*.py[cod]
+*$py.class

@@ -49,7 +49,7 @@ def run_game(screen: pygame.Surface) -> str:
                 else:
                     algo = renderer.get_selected_algo()
                     if algo:
-                        game.run_algorithm(algo)
+                        game.run_comparison(algo, renderer.get_compare_algo())
                     else:
                         game.message = "⚠ Vui lòng chọn thuật toán!"
                         game.message_color = C.VIZ_STUCK
@@ -68,7 +68,7 @@ def run_game(screen: pygame.Surface) -> str:
                         # Nếu chưa chạy → chạy algo đang chọn
                         algo = renderer.get_selected_algo()
                         if algo:
-                            game.run_algorithm(algo)
+                            game.run_comparison(algo, renderer.get_compare_algo())
                 elif key == pygame.K_RIGHT:
                     game.step_forward()
                 elif key == pygame.K_LEFT:
@@ -81,6 +81,8 @@ def run_game(screen: pygame.Surface) -> str:
                     game.reset_algo()
                 elif key == pygame.K_t:
                     game.toggle_speed()
+                elif key == pygame.K_h:
+                    game.toggle_theme()
                 # Di chuyển player
                 elif key == pygame.K_UP    or key == pygame.K_w:
                     game.try_move_player(-1, 0)
@@ -97,13 +99,17 @@ def run_game(screen: pygame.Surface) -> str:
 
 def main():
     pygame.init()
-    pygame.display.set_caption("AI Maze Solver — Mê Cung AI 30×30")
+    pygame.display.set_caption("AI Maze Solver - Me Cung AI")
 
-    icon = pygame.Surface((32, 32))
-    icon.fill((10, 10, 25))
-    pygame.draw.circle(icon, C.START_COLOR, (8, 16), 5)
-    pygame.draw.circle(icon, C.GOAL_COLOR, (24, 16), 5)
-    pygame.draw.line(icon, C.VIZ_PATH, (13, 16), (19, 16), 2)
+    try:
+        icon = pygame.image.load(C.LOGO_PATH)
+        icon = pygame.transform.smoothscale(icon, (32, 32))
+    except (pygame.error, FileNotFoundError, AttributeError):
+        icon = pygame.Surface((32, 32))
+        icon.fill((10, 10, 25))
+        pygame.draw.circle(icon, C.START_COLOR, (8, 16), 5)
+        pygame.draw.circle(icon, C.GOAL_COLOR, (24, 16), 5)
+        pygame.draw.line(icon, C.VIZ_PATH, (13, 16), (19, 16), 2)
     pygame.display.set_icon(icon)
 
     screen  = pygame.display.set_mode((C.SCREEN_W, C.SCREEN_H))

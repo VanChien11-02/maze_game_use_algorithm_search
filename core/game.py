@@ -4,6 +4,7 @@ Quản lý trạng thái: maze, player, thuật toán, animation.
 """
 
 import random
+import tracemalloc
 from typing import Optional, Tuple
 
 import config as C
@@ -29,6 +30,8 @@ class Game:
 
         self.current_algo:    Optional[str]         = None
         self.result:          Optional[PathResult]  = None
+        self.compare_algo:    Optional[str]         = None
+        self.compare_result:  Optional[PathResult]  = None
         self.playback_state   = PlaybackState.IDLE
         self.current_step_idx = 0
         self._step_timer      = 0.0
@@ -52,16 +55,24 @@ class Game:
         self.message = f"Mê cung mới! Seed={self.seed}"
         self.message_color = C.GOAL_COLOR
 
+    def resize_matrix(self, size: int):
+        if size == C.GRID_SIZE:
+            return
+        C.set_grid_size(size)
+        self.seed = random.randint(0, 99999)
+        self._init_maze()
+        self.player_pos = self.maze.start
+        self.reset_algo()
+        self.message = f"Matrix {size}x{size} | Tile={C.TILE_SIZE}px"
+        self.message_color = C.HUD_TITLE
+
     def run_algorithm(self, algo_name: str):
         if algo_name not in ALGO_RUNNERS:
             self.message = f"Thuật toán '{algo_name}' không tồn tại!"
             return
 
         self.current_algo     = algo_name
-        runner                = ALGO_RUNNERS[algo_name]
-        self.result           = runner(self.maze.grid,
-                                       self.maze.start, self.maze.goal,
-                                       C.ROWS, C.COLS)
+        self.result           = self._execute_algorithm(algo_name)
         self.current_step_idx = 0
         self.playback_state   = PlaybackState.RUNNING
         self._step_timer      = 0.0
@@ -71,9 +82,34 @@ class Game:
                         f"Tong {self.result.total_steps} buoc")
         self.message_color = C.get_algo_color(algo_name)
 
+    def run_comparison(self, algo_a: str, algo_b: str = None):
+        self.run_algorithm(algo_a)
+        self.compare_algo = algo_b if algo_b and algo_b in ALGO_RUNNERS else None
+        self.compare_result = None
+        if self.compare_algo:
+            self.compare_result = self._execute_algorithm(self.compare_algo)
+            self.message = (f"So sanh {algo_a} vs {self.compare_algo} | "
+                            f"A steps={self.result.total_steps}, "
+                            f"B steps={self.compare_result.total_steps}")
+
+    def _execute_algorithm(self, algo_name: str) -> PathResult:
+        runner = ALGO_RUNNERS[algo_name]
+        tracemalloc.start()
+        try:
+            result = runner(self.maze.grid,
+                            self.maze.start, self.maze.goal,
+                            C.ROWS, C.COLS)
+            _, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+        result.memory_kb = peak / 1024
+        return result
+
     def reset_algo(self):
         self.result           = None
         self.current_algo     = None
+        self.compare_result   = None
+        self.compare_algo     = None
         self.playback_state   = PlaybackState.IDLE
         self.current_step_idx = 0
         self.message          = "Chon nhom va thuat toan -> nhan PLAY"
@@ -81,7 +117,7 @@ class Game:
 
     def replay_algo(self):
         if self.current_algo:
-            self.run_algorithm(self.current_algo)
+            self.run_comparison(self.current_algo, self.compare_algo)
 
     def step_forward(self):
         if self.result and self.current_step_idx < len(self.result.steps):
@@ -97,6 +133,13 @@ class Game:
             self.playback_state = PlaybackState.PAUSED
         elif self.playback_state == PlaybackState.PAUSED:
             self.playback_state = PlaybackState.RUNNING
+
+    def toggle_theme(self):
+        name = C.next_theme()
+        if self.maze:
+            self.maze._tile_surf = self.maze._build_tiles()
+        self.message = f"Theme: {name} | Cyber/Dungeon/Neon/Space"
+        self.message_color = C.HUD_TITLE
 
     def toggle_speed(self):
         speeds = [C.ALGO_STEP_FAST, C.ALGO_STEP_NORMAL, C.ALGO_STEP_SLOW]

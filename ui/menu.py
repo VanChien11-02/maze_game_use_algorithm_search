@@ -48,6 +48,7 @@ class MenuScreen:
         self.w, self.h = screen.get_size()
         self._tick = 0.0
         self._particles = [Particle(self.w, self.h) for _ in range(60)]
+        self.logo = self._load_logo()
 
         try:
             self.f_big      = pygame.font.SysFont('Segoe UI', 58, bold=True)
@@ -67,11 +68,31 @@ class MenuScreen:
         bw, bh = 300, 56
         cx = self.w // 2 - bw // 2
         self._buttons = [
-            {'rect': pygame.Rect(cx, 430, bw, bh), 'text': 'BAT DAU',
+            {'rect': pygame.Rect(cx, 455, bw, bh), 'text': 'BAT DAU',
              'color': (35, 100, 55), 'hover': (55, 150, 85), 'border': (80, 210, 120)},
-            {'rect': pygame.Rect(cx, 500, bw, bh), 'text': 'THOAT',
+            {'rect': pygame.Rect(cx, 525, bw, bh), 'text': 'THOAT',
              'color': (90, 35, 35), 'hover': (140, 55, 55), 'border': (210, 80, 80)},
         ]
+
+    def _load_logo(self) -> Optional[pygame.Surface]:
+        try:
+            return pygame.image.load(C.LOGO_PATH).convert_alpha()
+        except (pygame.error, FileNotFoundError, AttributeError):
+            return None
+
+    def _draw_logo(self, x: int, y: int, size: int):
+        rect = pygame.Rect(x, y, size, size)
+        halo = pygame.Surface((size + 22, size + 22), pygame.SRCALPHA)
+        pygame.draw.circle(halo, (70, 110, 230, 55), (size // 2 + 11, size // 2 + 11), size // 2 + 10)
+        self.screen.blit(halo, (x - 11, y - 11))
+        pygame.draw.circle(self.screen, (248, 250, 255), rect.center, size // 2)
+        pygame.draw.circle(self.screen, (25, 42, 130), rect.center, size // 2, 3)
+        if self.logo:
+            logo = pygame.transform.smoothscale(self.logo, (size - 8, size - 8))
+            self.screen.blit(logo, (x + 4, y + 4))
+        else:
+            pygame.draw.circle(self.screen, C.GOAL_COLOR, rect.center, size // 5)
+            pygame.draw.circle(self.screen, C.HUD_TITLE, rect.center, size // 3, 3)
 
     def handle_event(self, event) -> Optional[str]:
         if event.type == pygame.KEYDOWN:
@@ -115,6 +136,7 @@ class MenuScreen:
         self.screen.blit(glow, (self.w//2 - gw//2, int(88+off)))
 
         # ── TITLE ──────────────────────────────────────────────────────
+        self._draw_logo(self.w//2 - 34, int(18+off*0.3), 68)
         t1 = self.f_big.render("AI MAZE SOLVER", True, C.HUD_TITLE)
         # Shadow effect
         t1_shd = self.f_big.render("AI MAZE SOLVER", True, (20, 40, 100))
@@ -122,7 +144,7 @@ class MenuScreen:
         self.screen.blit(t1,     (self.w//2 - t1.get_width()//2,     int(100+off)))
 
         # ── SUBTITLE ───────────────────────────────────────────────────
-        t2 = self.f_mid.render("Me Cung AI  —  5 Thuat Toan Tim Duong", True, C.GOAL_COLOR)
+        t2 = self.f_mid.render("Me Cung AI  —  6 Thuat Toan Tim Duong", True, C.GOAL_COLOR)
         self.screen.blit(t2, (self.w//2 - t2.get_width()//2, int(168+off)))
 
         # ── DESCRIPTION ────────────────────────────────────────────────
@@ -133,7 +155,7 @@ class MenuScreen:
 
         desc_lines = [
             ("Moi thuat toan giai cung 1 bai toan:", C.HUD_TITLE, self.f_sub),
-            ("Tim duong Start -> Goal trong me cung 30x30", C.HUD_TEXT, self.f_small),
+            ("Tim duong Start -> Goal trong me cung 15x15 den 40x40", C.HUD_TEXT, self.f_small),
             ("", None, None),
             ("Theo doi tung buoc thuc hien cua tung thuat toan:", C.HUD_TITLE, self.f_sub),
             ("Trang thai bat dau  ->  Cac buoc xu ly  ->  Ket qua", C.HUD_TEXT, self.f_small),
@@ -152,16 +174,17 @@ class MenuScreen:
                          (self.w//2 - 280, y_groups), (self.w//2 + 280, y_groups))
         y_groups += 10
 
-        groups_label = self.f_sub.render("5 Nhom Thuat Toan:", True, C.HUD_TITLE)
+        groups_label = self.f_sub.render("5 Nhom / 6 Thuat Toan:", True, C.HUD_TITLE)
         self.screen.blit(groups_label, (self.w//2 - groups_label.get_width()//2, y_groups))
         y_groups += groups_label.get_height() + 6
 
         group_items = [
-            ("1. DFS",         "Uninformed Search",  C.ALGO_GROUPS['Uninformed Search']['color']),
-            ("2. A*",          "Informed Search",    C.ALGO_GROUPS['Informed Search']['color']),
-            ("3. Steepest HC", "Local Search",       C.ALGO_GROUPS['Local Search']['color']),
-            ("4. BFS-PO",      "Complex Environment",C.ALGO_GROUPS['Complex Environment']['color']),
-            ("5. Backtrack",   "CSP",                C.ALGO_GROUPS['CSP']['color']),
+            ("1. BFS",         "Uninformed Search",  C.ALGO_GROUPS['Uninformed Search']['color']),
+            ("2. DFS",         "Uninformed Search",  C.ALGO_GROUPS['Uninformed Search']['color']),
+            ("3. A*",          "Informed Search",    C.ALGO_GROUPS['Informed Search']['color']),
+            ("4. Steepest HC", "Local Search",       C.ALGO_GROUPS['Local Search']['color']),
+            ("5. BFS-PO",      "Complex Environment",C.ALGO_GROUPS['Complex Environment']['color']),
+            ("6. Backtrack",   "CSP",                C.ALGO_GROUPS['CSP']['color']),
         ]
 
         # Hien thi 2 cot x 3 va 2
