@@ -1,7 +1,18 @@
 # Chặn file cấu hình môi trường thật (nếu có tạo sau này)
 .env
 
+# Chặn môi trường ảo và cấu hình IDE
+env/
+.venv/
+.idea/
+.vscode/
+
 # Chặn đống file rác cache của Python (đống đang hiện trong git status của bạn)
 **/__pycache__/
 *.py[cod]
 *$py.class
+
+# Chặn output build/test
+.pytest_cache/
+build/
+dist/

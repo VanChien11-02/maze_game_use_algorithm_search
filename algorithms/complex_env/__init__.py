@@ -3,4 +3,5 @@
 # De them thuat toan moi: tao file <ten>.py trong thu muc nay va import o day
 
 from algorithms.complex_env.bfs_partial import *
+from algorithms.complex_env.belief_dfs import *
 

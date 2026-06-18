@@ -10,6 +10,9 @@ from core.game import Game, PlaybackState
 from ui.combobox import Combobox
 
 
+COMPARE_NONE_LABEL = "Không so sánh"
+
+
 class Renderer:
     def __init__(self, screen: pygame.Surface):
         self.screen = screen
@@ -85,13 +88,12 @@ class Renderer:
             selected_idx=0,
             max_visible=5,
         )
-        first_options = self._algo_options(first_group)
         self.cb_compare = Combobox(
             abs_x=hx + (cb_w + 10) // 2, abs_y=self.Y_CB3,
             w=(cb_w - 10) // 2, h=self.CB_H,
-            options=first_options,
+            options=self._compare_options(first_group),
             font=self.f_cb,
-            selected_idx=1 if len(first_options) > 1 else 0,
+            selected_idx=0,
             max_visible=5,
         )
         size_options = [f"{n} x {n}" for n in C.GRID_OPTIONS]
@@ -113,6 +115,9 @@ class Renderer:
         algos = info.get('algorithms', {})
         return [f"{k} - {v}" for k, v in algos.items()]
 
+    def _compare_options(self, group_name: str):
+        return [COMPARE_NONE_LABEL] + self._algo_options(group_name)
+
     def _algo_key(self) -> str:
         group = C.GROUP_NAMES[self._group_idx]
         keys = list(C.ALGO_GROUPS[group]['algorithms'].keys())
@@ -121,9 +126,9 @@ class Renderer:
 
     def _on_group_changed(self, idx: int):
         self._group_idx = idx
-        options = self._algo_options(C.GROUP_NAMES[idx])
-        self.cb_algo.set_options(options, selected_idx=0)
-        self.cb_compare.set_options(options, selected_idx=1 if len(options) > 1 else 0)
+        group_name = C.GROUP_NAMES[idx]
+        self.cb_algo.set_options(self._algo_options(group_name), selected_idx=0)
+        self.cb_compare.set_options(self._compare_options(group_name), selected_idx=0)
         self.cb_algo.close()
         self.cb_compare.close()
 
@@ -133,7 +138,7 @@ class Renderer:
     def get_compare_algo(self) -> str:
         group = C.GROUP_NAMES[self._group_idx]
         keys = list(C.ALGO_GROUPS[group]['algorithms'].keys())
-        idx = self.cb_compare.selected
+        idx = self.cb_compare.selected - 1
         return keys[idx] if 0 <= idx < len(keys) else ''
 
     def _selected_matrix_size(self) -> int:
@@ -229,6 +234,22 @@ class Renderer:
             player_pos=game.player_pos,
             known_cells=known_cells,
         )
+        if game.race_mode and game.compare_result:
+            game.maze.draw_race_agent(
+                map_surf,
+                game.result,
+                game.current_step_idx,
+                C.START_COLOR,
+                "A"
+            )
+
+            game.maze.draw_race_agent(
+                map_surf,
+                game.compare_result,
+                game.compare_step_idx,
+                C.PLAYER_COLOR,
+                "B"
+            )
         pygame.draw.rect(self.screen, C.HUD_BORDER, (0, 0, C.MAP_W, C.MAP_H), 2)
 
     def _draw_hud(self, game: Game):
@@ -276,10 +297,10 @@ class Renderer:
         _draw_label(panel, self.f_label, "Nhom thuat toan", pad, self.Y_LABEL1, C.HUD_TITLE)
         half = (C.HUD_W - pad * 2 - 10) // 2
         _draw_label(panel, self.f_label, "Thuat toan A (hien thi)", pad, self.Y_LABEL2, C.HUD_TITLE)
-        _draw_label(panel, self.f_label, "Thuat toan B (so sanh)", pad + half + 10, self.Y_LABEL3, C.HUD_TITLE)
+        _draw_label(panel, self.f_label, "Thuat toan B (tuy chon)", pad + half + 10, self.Y_LABEL3, C.HUD_TITLE)
 
         hint = self.f_tiny.render("Chon thuat toan roi nhan PLAY", True, C.HUD_MUTED)
-        panel.blit(hint, (pad, self.Y_PLAY + self.PLAY_H + 6))
+        panel.blit(hint, (pad, self.Y_PLAY + self.PLAY_H + 1))
 
     def _draw_maze_card(self, panel: pygame.Surface, game: Game, pad: int):
         rect = pygame.Rect(pad - 2, 238, C.HUD_W - pad * 2 + 4, 72)
@@ -302,7 +323,7 @@ class Renderer:
         """Tiny overview map placed inside the maze info zone."""
         # use available blank region in Maze card, right side but below chips
         size = 54
-        x = C.HUD_W - pad - size - 4
+        x = pad + 305
         y = 251
         rect = pygame.Rect(x, y, size, size)
         pygame.draw.rect(panel, (8, 13, 25), rect, border_radius=8)
@@ -357,7 +378,7 @@ class Renderer:
         table = pygame.Rect(pad, 374, C.HUD_W - pad * 2, 154)
         _draw_compare_table(panel, self.f_label, self.f_value, self.f_tiny,
                             table, algo_a, result, algo_b, compare, game)
-        self._draw_race_bars(panel, game, pad, 514)
+        self._draw_race_bars(panel, game, pad, 531)
 
     def _draw_log_card(self, panel: pygame.Surface, game: Game, pad: int):
         rect = pygame.Rect(pad - 2, 548, C.HUD_W - pad * 2 + 4, 82)
@@ -396,24 +417,35 @@ class Renderer:
         pygame.draw.rect(panel, C.HUD_BORDER, bar, 1, border_radius=4)
 
     def _draw_race_bars(self, panel: pygame.Surface, game: Game, pad: int, y: int):
-        """Live Algorithm Race: A đang chạy vs B đã tính sẵn."""
-        if not game.result:
+        if not game.result or not game.compare_result:
             return
+
         w = (C.HUD_W - pad * 2 - 20) // 2
+
         a_pct = game.progress
-        b_pct = 1.0 if game.compare_result else 0.0
-        items = [("A " + (game.current_algo or "--"), a_pct, C.START_COLOR),
-                 ("B " + (game.compare_algo or "--"), b_pct, C.PLAYER_COLOR)]
+        b_pct = game.compare_progress if game.race_mode else (1.0 if game.compare_result else 0.0)
+
+        items = [
+            ("A " + (game.current_algo or "--"), a_pct, C.START_COLOR),
+            ("B " + (game.compare_algo or "--"), b_pct, C.PLAYER_COLOR),
+        ]
+
         for idx, (name, pct, col) in enumerate(items):
             x = pad + idx * (w + 20)
-            label = self.f_tiny.render(name, True, col)
-            panel.blit(label, (x, y))
-            rb = pygame.Rect(x + 54, y + 4, w - 58, 5)
-            pygame.draw.rect(panel, (20, 24, 42), rb, border_radius=3)
+
+            rb = pygame.Rect(x, y, w, 7)
+            pygame.draw.rect(panel, (20, 24, 42), rb, border_radius=4)
+
             fill = int(rb.w * max(0, min(1, pct)))
-            if fill:
-                pygame.draw.rect(panel, col, (rb.x, rb.y, fill, rb.h), border_radius=3)
-            pygame.draw.rect(panel, C.HUD_BORDER, rb, 1, border_radius=3)
+
+            if fill > 0:
+                pygame.draw.rect(panel, col, (rb.x, rb.y, fill, rb.h), border_radius=4)
+
+                runner_x = rb.x + fill
+                pygame.draw.circle(panel, col, (runner_x, rb.centery), 5)
+                pygame.draw.circle(panel, C.WHITE, (runner_x, rb.centery), 2)
+
+            pygame.draw.rect(panel, C.HUD_BORDER, rb, 1, border_radius=4)
 
     def _draw_controls_card(self, panel: pygame.Surface, pad: int):
         rect = pygame.Rect(pad - 2, 674, C.HUD_W - pad * 2 + 4, 24)
@@ -425,6 +457,7 @@ class Renderer:
             ("R", "Maze moi"),
             ("T", "Toc do"),
             ("H", "Theme"),
+            ("M", "Race"),
             ("Esc", "Menu"),
         ]
         x = pad
@@ -605,7 +638,7 @@ def _draw_compare_table(surface, f_label, f_value, f_tiny, rect,
     headers = [
         ("Chi so", col_metric, 110, C.HUD_TITLE),
         (f"A live: {algo_a}", col_a, col_w, C.START_COLOR),
-        (f"B final: {algo_b}", col_b, col_w, C.PLAYER_COLOR),
+        (f"B {'live' if game.race_mode and result_b else 'final'}: {algo_b}", col_b, col_w, C.PLAYER_COLOR),
     ]
     for text, x, w, color in headers:
         s = _clip_surface(f_label, text, color, w - 8)
@@ -629,6 +662,12 @@ def _draw_compare_table(surface, f_label, f_value, f_tiny, rect,
 
     y = rect.y + 38
     a_is_final = game.playback_state == PlaybackState.DONE or game.progress >= 1.0
+    b_is_live = bool(game.race_mode and result_b)
+    b_is_final = (
+        game.playback_state == PlaybackState.DONE
+        or (b_is_live and game.compare_progress >= 1.0)
+        or (result_b and not b_is_live)
+    )
     for idx, (label, getter, lower_is_better) in enumerate(rows):
         if idx % 2 == 1:
             pygame.draw.rect(surface, (14, 17, 31),
@@ -637,12 +676,23 @@ def _draw_compare_table(surface, f_label, f_value, f_tiny, rect,
         label_s = f_label.render(label, True, C.HUD_TEXT)
         surface.blit(label_s, (col_metric + 8, y))
 
-        raw_a, text_a = _metric_live_a(label, getter, result_a, game)
-        raw_b, text_b = getter(result_b)
-        if a_is_final:
+        raw_a, text_a = _metric_live(
+            label, getter, result_a, game.current_step,
+            game.progress, game.current_step_idx
+        )
+        if b_is_live:
+            raw_b, text_b = _metric_live(
+                label, getter, result_b, game.compare_current_step,
+                game.compare_progress, game.compare_step_idx
+            )
+        else:
+            raw_b, text_b = getter(result_b)
+
+        if a_is_final and b_is_final:
             col_a_color, col_b_color = _compare_colors(raw_a, raw_b, lower_is_better)
         else:
-            col_a_color, col_b_color = C.START_COLOR, C.HUD_TEXT
+            col_a_color = C.START_COLOR
+            col_b_color = C.PLAYER_COLOR if b_is_live else C.HUD_TEXT
 
         a_s = _clip_surface(f_value, text_a, col_a_color, col_w - 12)
         b_s = _clip_surface(f_value, text_b, col_b_color, col_w - 12)
@@ -662,16 +712,15 @@ def _compare_colors(a, b, lower_is_better):
     return (best if a_better else neutral), (best if not a_better else neutral)
 
 
-def _metric_live_a(label, final_getter, result, game):
+def _metric_live(label, final_getter, result, step, progress, step_idx):
     if not result:
         return None, "--"
 
-    step = game.current_step
-    done = game.playback_state == PlaybackState.DONE or game.progress >= 1.0
+    progress = max(0.0, min(1.0, progress))
+    done = progress >= 1.0
     if done:
         return final_getter(result)
 
-    progress = max(0.0, min(1.0, game.progress))
     if label == "Cost":
         if not step or not step.path_so_far:
             return None, "--"
@@ -685,11 +734,11 @@ def _metric_live_a(label, final_getter, result, game):
             return None, "--"
         live_ratio = 0.0
         denom = max(1, result.total_visited + len(result.steps))
-        live_ratio = min(1.0, (len(step.visited) + game.current_step_idx) / denom)
+        live_ratio = min(1.0, (len(step.visited) + step_idx) / denom)
         live_kb = result.memory_kb * live_ratio
         return live_kb, f"{live_kb:.1f} KB"
     if label == "Steps":
-        return game.current_step_idx, f"{game.current_step_idx}/{result.total_steps}"
+        return step_idx, f"{step_idx}/{result.total_steps}"
     if label == "Visited":
         visited = len(step.visited) if step else 0
         return visited, str(visited)

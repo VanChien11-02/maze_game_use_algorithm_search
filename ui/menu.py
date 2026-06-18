@@ -68,9 +68,9 @@ class MenuScreen:
         bw, bh = 300, 56
         cx = self.w // 2 - bw // 2
         self._buttons = [
-            {'rect': pygame.Rect(cx, 455, bw, bh), 'text': 'BAT DAU',
+            {'rect': pygame.Rect(cx, 500, bw, bh), 'text': 'BAT DAU',
              'color': (35, 100, 55), 'hover': (55, 150, 85), 'border': (80, 210, 120)},
-            {'rect': pygame.Rect(cx, 525, bw, bh), 'text': 'THOAT',
+            {'rect': pygame.Rect(cx, 570, bw, bh), 'text': 'THOAT',
              'color': (90, 35, 35), 'hover': (140, 55, 55), 'border': (210, 80, 80)},
         ]
 
@@ -143,8 +143,11 @@ class MenuScreen:
         self.screen.blit(t1_shd, (self.w//2 - t1.get_width()//2 + 2, int(100+off) + 2))
         self.screen.blit(t1,     (self.w//2 - t1.get_width()//2,     int(100+off)))
 
+        algo_count = sum(len(info['algorithms']) for info in C.ALGO_GROUPS.values())
+        group_count = len(C.ALGO_GROUPS)
+
         # ── SUBTITLE ───────────────────────────────────────────────────
-        t2 = self.f_mid.render("Me Cung AI  —  6 Thuat Toan Tim Duong", True, C.GOAL_COLOR)
+        t2 = self.f_mid.render(f"Me Cung AI  —  {algo_count} Thuat Toan Tim Duong", True, C.GOAL_COLOR)
         self.screen.blit(t2, (self.w//2 - t2.get_width()//2, int(168+off)))
 
         # ── DESCRIPTION ────────────────────────────────────────────────
@@ -168,49 +171,50 @@ class MenuScreen:
             self.screen.blit(s, (self.w//2 - s.get_width()//2, y_desc))
             y_desc += s.get_height() + 4
 
-        # ── 5 NHOM THUAT TOAN (hien thi dep, khong co box tag nhu cu) ──
+        # ── NHOM THUAT TOAN (hien thi dep, khong co box tag nhu cu) ──
         y_groups = y_desc + 10
         pygame.draw.line(self.screen, (35, 50, 90),
                          (self.w//2 - 280, y_groups), (self.w//2 + 280, y_groups))
         y_groups += 10
 
-        groups_label = self.f_sub.render("5 Nhom / 6 Thuat Toan:", True, C.HUD_TITLE)
+        groups_label = self.f_sub.render(f"{group_count} Nhom / {algo_count} Thuat Toan:", True, C.HUD_TITLE)
         self.screen.blit(groups_label, (self.w//2 - groups_label.get_width()//2, y_groups))
         y_groups += groups_label.get_height() + 6
 
-        group_items = [
-            ("1. BFS",         "Uninformed Search",  C.ALGO_GROUPS['Uninformed Search']['color']),
-            ("2. DFS",         "Uninformed Search",  C.ALGO_GROUPS['Uninformed Search']['color']),
-            ("3. A*",          "Informed Search",    C.ALGO_GROUPS['Informed Search']['color']),
-            ("4. Steepest HC", "Local Search",       C.ALGO_GROUPS['Local Search']['color']),
-            ("5. BFS-PO",      "Complex Environment",C.ALGO_GROUPS['Complex Environment']['color']),
-            ("6. Backtrack",   "CSP",                C.ALGO_GROUPS['CSP']['color']),
-        ]
+        group_items = []
+        idx = 1
+        for group_name, info in C.ALGO_GROUPS.items():
+            for algo_name in info['algorithms']:
+                group_items.append((f"{idx}. {algo_name}", group_name, info['color']))
+                idx += 1
 
-        # Hien thi 2 cot x 3 va 2
-        col1 = [(g, n, c) for g, n, c in group_items[:3]]
-        col2 = [(g, n, c) for g, n, c in group_items[3:]]
+        mid = (len(group_items) + 1) // 2
+        col1 = group_items[:mid]
+        col2 = group_items[mid:]
 
         x_left  = self.w//2 - 280
         x_right = self.w//2 + 20
         for i, (algo, group, color) in enumerate(col1):
             dot_x = x_left + 6
-            pygame.draw.circle(self.screen, color, (dot_x, y_groups + i*20 + 7), 5)
+            row_y = y_groups + i * 18
+            pygame.draw.circle(self.screen, color, (dot_x, row_y + 7), 5)
             a_s = self.f_small.render(f"{algo}", True, C.WHITE)
             g_s = self.f_tiny.render(f" — {group}", True, (160, 175, 210))
-            self.screen.blit(a_s, (dot_x + 12, y_groups + i*20))
-            self.screen.blit(g_s, (dot_x + 12 + a_s.get_width(), y_groups + i*20 + 2))
+            self.screen.blit(a_s, (dot_x + 12, row_y))
+            self.screen.blit(g_s, (dot_x + 12 + a_s.get_width(), row_y + 2))
 
         for i, (algo, group, color) in enumerate(col2):
             dot_x = x_right + 6
-            pygame.draw.circle(self.screen, color, (dot_x, y_groups + i*20 + 7), 5)
+            row_y = y_groups + i * 18
+            pygame.draw.circle(self.screen, color, (dot_x, row_y + 7), 5)
             a_s = self.f_small.render(f"{algo}", True, C.WHITE)
             g_s = self.f_tiny.render(f" — {group}", True, (160, 175, 210))
-            self.screen.blit(a_s, (dot_x + 12, y_groups + i*20))
-            self.screen.blit(g_s, (dot_x + 12 + a_s.get_width(), y_groups + i*20 + 2))
+            self.screen.blit(a_s, (dot_x + 12, row_y))
+            self.screen.blit(g_s, (dot_x + 12 + a_s.get_width(), row_y + 2))
 
         pygame.draw.line(self.screen, (35, 50, 90),
-                         (self.w//2 - 280, y_groups + 60), (self.w//2 + 280, y_groups + 60))
+                         (self.w//2 - 280, y_groups + mid * 18 + 4),
+                         (self.w//2 + 280, y_groups + mid * 18 + 4))
 
         # ── BUTTONS ────────────────────────────────────────────────────
         mx, my = pygame.mouse.get_pos()

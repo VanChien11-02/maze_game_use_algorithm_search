@@ -34,6 +34,7 @@ from algorithms.informed.greedy     import run_greedy
 from algorithms.local.steepest_hc   import run_steepest_hc
 from algorithms.local.simulated_annealing import run_simulated_annealing
 from algorithms.complex_env.bfs_partial import run_bfs_partial
+from algorithms.complex_env.belief_dfs import run_belief_dfs
 from algorithms.csp.backtracking    import run_backtracking
 from algorithms.csp.min_conflicts   import run_min_conflicts
 
@@ -46,6 +47,7 @@ ALGO_RUNNERS = {
     'Steepest HC': run_steepest_hc,
     'SA':          run_simulated_annealing,
     'BFS-PO':      run_bfs_partial,
+    'BS-DFS':      run_belief_dfs,
     'Backtrack':   run_backtracking,
     'Min-Conflicts': run_min_conflicts,
 }

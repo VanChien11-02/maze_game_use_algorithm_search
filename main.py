@@ -1,7 +1,7 @@
 # main.py — Entry point AI Maze Solver
 """
 AI Maze Solver — Mê Cung AI 30×30
-6 nhóm thuật toán, chọn qua Combobox, chạy bằng nút PLAY.
+5 nhóm thuật toán, chọn qua Combobox, chạy bằng nút PLAY.
 
 Điều khiển:
   Combobox 1  : Chọn nhóm thuật toán
@@ -14,12 +14,15 @@ AI Maze Solver — Mê Cung AI 30×30
   [R]         : Sinh mê cung mới
   [Delete]    : Xóa kết quả
   [T]         : Đổi tốc độ (nhanh/bình thường/chậm)
+  [H]         : Đổi theme
+  [M]         : Bật/tắt Race Mode khi có thuật toán so sánh
   [↑↓]        : Di chuyển player lên/xuống
   [A/D]       : Di chuyển player trái/phải
   [ESC]       : Về menu
 """
 
 import sys
+import signal
 import pygame
 import config as C
 from core.game import Game, PlaybackState
@@ -83,6 +86,8 @@ def run_game(screen: pygame.Surface) -> str:
                     game.toggle_speed()
                 elif key == pygame.K_h:
                     game.toggle_theme()
+                elif key == pygame.K_m:
+                    game.toggle_race_mode()
                 # Di chuyển player
                 elif key == pygame.K_UP    or key == pygame.K_w:
                     game.try_move_player(-1, 0)
@@ -93,11 +98,14 @@ def run_game(screen: pygame.Surface) -> str:
                 elif key == pygame.K_d:
                     game.try_move_player(0, 1)
 
+
         game.update(dt)
         renderer.render(game, dt)
 
 
 def main():
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
     pygame.init()
     pygame.display.set_caption("AI Maze Solver - Me Cung AI")
 
@@ -145,4 +153,8 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        pygame.quit()
+        sys.exit(0)

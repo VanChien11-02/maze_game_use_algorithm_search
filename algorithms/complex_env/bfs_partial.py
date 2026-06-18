@@ -1,4 +1,4 @@
-# algorithms/bfs_partial.py — Nhóm 4: Complex Environment — BFS Partially Observable
+# algorithms/complex_env/bfs_partial.py — Nhóm 4: Complex Environment — BFS Partially Observable
 """
 BFS Partially Observable — BFS trong môi trường quan sát một phần
 ══════════════════════════════════════════════════════════════════

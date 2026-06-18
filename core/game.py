@@ -14,6 +14,9 @@ from algorithms.base import PathResult, Step
 from algorithms import ALGO_RUNNERS
 
 
+FAST_MEMORY_ESTIMATE = {'SA', 'BFS-PO'}
+
+
 class PlaybackState:
     IDLE    = 'idle'
     RUNNING = 'running'
@@ -40,6 +43,10 @@ class Game:
         self.message       = "Chọn nhóm và thuật toán → nhấn PLAY"
         self.message_color = C.HUD_TEXT
         self._tick         = 0.0
+
+        self.race_mode = False
+        self.compare_step_idx = 0
+        self._compare_step_timer = 0.0
 
     def _init_maze(self):
         grid  = generate_maze(C.COLS, C.ROWS, seed=self.seed)
@@ -84,16 +91,49 @@ class Game:
 
     def run_comparison(self, algo_a: str, algo_b: str = None):
         self.run_algorithm(algo_a)
-        self.compare_algo = algo_b if algo_b and algo_b in ALGO_RUNNERS else None
+
+        self.compare_algo = (
+            algo_b if algo_b and algo_b != algo_a and algo_b in ALGO_RUNNERS
+            else None
+        )
+
         self.compare_result = None
+        self.compare_step_idx = 0
+        self._compare_step_timer = 0.0
+
         if self.compare_algo:
             self.compare_result = self._execute_algorithm(self.compare_algo)
-            self.message = (f"So sanh {algo_a} vs {self.compare_algo} | "
-                            f"A steps={self.result.total_steps}, "
-                            f"B steps={self.compare_result.total_steps}")
+
+            if self.race_mode:
+                self.message = f"RACE MODE: {algo_a} vs {self.compare_algo}"
+            else:
+                self.message = (
+                    f"So sanh {algo_a} vs {self.compare_algo} | "
+                    f"A steps={self.result.total_steps}, "
+                    f"B steps={self.compare_result.total_steps}"
+                )
+
+    def toggle_race_mode(self):
+        self.race_mode = not self.race_mode
+
+        if self.race_mode:
+            self.compare_step_idx = 0
+            self._compare_step_timer = 0.0
+            self.message = "Race Mode ON: 2 thuật toán chạy cùng lúc"
+            self.message_color = C.START_COLOR
+        else:
+            self.message = "Race Mode OFF: so sánh số liệu bình thường"
+            self.message_color = C.HUD_TEXT
 
     def _execute_algorithm(self, algo_name: str) -> PathResult:
         runner = ALGO_RUNNERS[algo_name]
+        if algo_name in FAST_MEMORY_ESTIMATE:
+            result = runner(self.maze.grid,
+                            self.maze.start, self.maze.goal,
+                            C.ROWS, C.COLS)
+            result.memory_kb = self._estimate_memory_kb(result)
+            return result
+
         tracemalloc.start()
         try:
             result = runner(self.maze.grid,
@@ -105,6 +145,12 @@ class Game:
         result.memory_kb = peak / 1024
         return result
 
+    def _estimate_memory_kb(self, result: PathResult) -> float:
+        cells = len(result.path)
+        for step in result.steps:
+            cells += len(step.frontier) + len(step.visited) + len(step.path_so_far)
+        return (len(result.steps) * 256 + cells * 16) / 1024
+
     def reset_algo(self):
         self.result           = None
         self.current_algo     = None
@@ -114,6 +160,8 @@ class Game:
         self.current_step_idx = 0
         self.message          = "Chon nhom va thuat toan -> nhan PLAY"
         self.message_color    = C.HUD_TEXT
+        self.compare_step_idx = 0
+        self._compare_step_timer = 0.0
 
     def replay_algo(self):
         if self.current_algo:
@@ -185,12 +233,33 @@ class Game:
 
         if self.playback_state == PlaybackState.RUNNING and self.result:
             self._step_timer += dt
+
             if self._step_timer >= self.step_delay:
                 self._step_timer = 0.0
+
                 if self.current_step_idx < len(self.result.steps):
                     self.current_step_idx += 1
-                    if self.current_step_idx >= len(self.result.steps):
-                        self._on_step_changed()
+
+            # Race Mode: thuật toán B cũng chạy từng bước
+            if self.race_mode and self.compare_result:
+                self._compare_step_timer += dt
+
+                if self._compare_step_timer >= self.step_delay:
+                    self._compare_step_timer = 0.0
+
+                    if self.compare_step_idx < len(self.compare_result.steps):
+                        self.compare_step_idx += 1
+
+            # kết thúc
+            a_done = self.current_step_idx >= len(self.result.steps)
+
+            if self.race_mode and self.compare_result:
+                b_done = self.compare_step_idx >= len(self.compare_result.steps)
+                if a_done and b_done:
+                    self._on_step_changed()
+            else:
+                if a_done:
+                    self._on_step_changed()
 
     @property
     def current_step(self) -> Optional[Step]:
@@ -204,3 +273,18 @@ class Game:
         if not self.result or not self.result.steps:
             return 0.0
         return min(1.0, self.current_step_idx / len(self.result.steps))
+
+    @property
+    def compare_current_step(self):
+        if not self.compare_result or not self.compare_result.steps:
+            return None
+
+        idx = min(self.compare_step_idx, len(self.compare_result.steps) - 1)
+        return self.compare_result.steps[idx] if idx >= 0 else None
+
+    @property
+    def compare_progress(self) -> float:
+        if not self.compare_result or not self.compare_result.steps:
+            return 0.0
+
+        return min(1.0, self.compare_step_idx / len(self.compare_result.steps))

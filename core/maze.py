@@ -246,10 +246,34 @@ class Maze:
         cur = step.current
         if cur and cur not in (self.start, self.goal):
             r, c = cur
-            rect = pygame.Rect(c * ts + 2, r * ts + 2, ts - 4, ts - 4)
-            self._draw_cell_overlay(surface, r, c, C.VIZ_CURRENT, 70 + pulse, inset=2, glow=True)
-            pygame.draw.rect(surface, C.WHITE, rect, 2, border_radius=5)
-            pygame.draw.rect(surface, C.VIZ_PATH, rect.inflate(-6, -6), 2, border_radius=4)
+            cx = c * ts + ts // 2
+            cy = r * ts + ts // 2
+
+            pulse = abs(math.sin(self._tick * 6))
+            radius = max(6, ts // 2 + int(pulse * 5))
+
+            self._draw_cell_overlay(surface, r, c, C.VIZ_CURRENT, 100 + int(pulse * 80), inset=2, glow=True)
+
+            pygame.draw.circle(surface, (*C.VIZ_CURRENT, 90), (cx, cy), radius)
+            pygame.draw.circle(surface, C.WHITE, (cx, cy), max(4, ts // 5), 2)
+
+            # 3 chấm “thinking”
+            dot_y = cy - ts // 2 - 8
+            for i in range(3):
+                a = abs(math.sin(self._tick * 5 + i))
+                pygame.draw.circle(
+                    surface,
+                    C.VIZ_CURRENT,
+                    (cx - 10 + i * 10, dot_y - int(a * 4)),
+                    max(2, ts // 10)
+                )
+
+            if ts >= 18:
+                font = self._get_marker_font()
+                txt = font.render("AI", True, C.BLACK)
+                tag = pygame.Rect(cx - 14, cy + ts // 4, 28, 14)
+                pygame.draw.rect(surface, C.VIZ_CURRENT, tag, border_radius=4)
+                surface.blit(txt, (tag.centerx - txt.get_width() // 2, tag.centery - txt.get_height() // 2))
 
         if is_done and result.path:
             pts = []
@@ -261,7 +285,60 @@ class Maze:
                 pts.append((c * ts + ts // 2, r * ts + ts // 2))
             if len(pts) >= 2:
                 self._draw_pixel_route(surface, pts, C.VIZ_PATH, moving=False, final=True)
+    def draw_race_agent(self, surface, result, step_idx, color, label):
+        if not result or not result.steps or step_idx <= 0:
+            return
 
+        ts = C.TILE_SIZE
+        idx = min(step_idx - 1, len(result.steps) - 1)
+        step = result.steps[idx]
+
+        # visited riêng của agent
+        for pos in step.visited:
+            if pos in (self.start, self.goal):
+                continue
+
+            r, c = pos
+            self._draw_cell_overlay(surface, r, c, color, 45, inset=6)
+
+        # path riêng của agent
+        pts = []
+        for pos in step.path_so_far:
+            if pos in (self.start, self.goal):
+                continue
+
+            r, c = pos
+            self._draw_cell_overlay(surface, r, c, color, 95, inset=5, glow=True)
+            pts.append((c * ts + ts // 2, r * ts + ts // 2))
+
+        if len(pts) >= 2:
+            pygame.draw.lines(surface, color, False, pts, max(2, ts // 8))
+
+        # current node / agent
+        if step.current:
+            r, c = step.current
+            cx = c * ts + ts // 2
+            cy = r * ts + ts // 2
+
+            pulse = abs(math.sin(self._tick * 7))
+            radius = max(5, ts // 3 + int(pulse * 4))
+
+            pygame.draw.circle(surface, (*color, 90), (cx, cy), radius)
+            pygame.draw.circle(surface, color, (cx, cy), max(4, ts // 4))
+            pygame.draw.circle(surface, C.WHITE, (cx, cy), max(2, ts // 9))
+
+            if ts >= 18:
+                font = self._get_marker_font()
+                txt = font.render(label, True, C.BLACK)
+                tag = pygame.Rect(cx - 14, cy - ts // 2, 28, 14)
+                pygame.draw.rect(surface, color, tag, border_radius=4)
+                surface.blit(
+                    txt,
+                    (
+                        tag.centerx - txt.get_width() // 2,
+                        tag.centery - txt.get_height() // 2,
+                    ),
+                )
     
     def _draw_pixel_route(self, surface, pts, color, moving=True, final=False):
         """Vẽ route nổi bật dạng neon pixel cable + hạt sáng chạy trên đường."""

@@ -134,6 +134,7 @@ ALGO_GROUPS = {
         'color':   ( 40, 160, 170),
         'algorithms': {
             'BFS-PO': 'BFS Partially Observable',
+            'BS-DFS': 'Belief-State DFS',
             # Thêm: 'Online-DFS': 'Online DFS Agent',
         },
     },

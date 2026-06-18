@@ -48,6 +48,22 @@ def _weighted_neighbor(rng: random.Random, candidates: List[Tuple[int, int]],
     return candidates[-1]
 
 
+def _loop_erased_path(path: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+    """Remove random-walk loops while keeping a legal start-to-goal path."""
+    compact: List[Tuple[int, int]] = []
+    index = {}
+    for pos in path:
+        if pos in index:
+            keep_to = index[pos] + 1
+            for removed in compact[keep_to:]:
+                index.pop(removed, None)
+            compact = compact[:keep_to]
+        else:
+            index[pos] = len(compact)
+            compact.append(pos)
+    return compact
+
+
 def run_simulated_annealing(grid: List[List[int]],
                             start: Tuple[int, int],
                             goal: Tuple[int, int],
@@ -69,6 +85,7 @@ def run_simulated_annealing(grid: List[List[int]],
     min_temperature = 0.001
     alpha = 0.9995
     max_steps = min(45000, max(10000, rows * cols * 60))
+    sample_stride = max(1, max_steps // 1400)
     restarts = 0
     max_restarts = 4
 
@@ -123,6 +140,7 @@ def run_simulated_annealing(grid: List[List[int]],
         delta = h_next - h_cur
 
         accepted = False
+        improved_best = False
         probability = 1.0 if delta < 0 else math.exp(-delta / max(temperature, 1e-9))
         if must_escape_dead_end or delta < 0 or rng.random() < probability:
             current = next_pos
@@ -133,6 +151,7 @@ def run_simulated_annealing(grid: List[List[int]],
             if h_next < best_h:
                 best = current
                 best_h = h_next
+                improved_best = True
         else:
             rejected_streak += 1
 
@@ -149,36 +168,45 @@ def run_simulated_annealing(grid: List[List[int]],
         )
         if reheated:
             desc += " | reheat"
-        steps.append(Step(
-            step_num=step_num,
-            current=current,
-            frontier=[p for p in choices if p != next_pos],
-            visited=set(visited),
-            path_so_far=list(path),
-            description=desc,
-            extra={
-                'h': manhattan(current, goal),
-                'h_next': h_next,
-                'delta': delta,
-                'temperature': temperature,
-                'probability': probability,
-                'accepted': accepted,
-                'forced_escape': must_escape_dead_end,
-                'reheated': reheated,
-                'best': best,
-                'best_h': best_h,
-            }
-        ))
+        should_record = (
+            step_num % sample_stride == 0
+            or current == goal
+            or reheated
+            or improved_best
+        )
+        if should_record:
+            steps.append(Step(
+                step_num=step_num,
+                current=current,
+                frontier=[p for p in choices if p != next_pos],
+                visited=set(visited),
+                path_so_far=list(path),
+                description=desc,
+                extra={
+                    'h': manhattan(current, goal),
+                    'h_next': h_next,
+                    'delta': delta,
+                    'temperature': temperature,
+                    'probability': probability,
+                    'accepted': accepted,
+                    'forced_escape': must_escape_dead_end,
+                    'reheated': reheated,
+                    'best': best,
+                    'best_h': best_h,
+                    'sample_stride': sample_stride,
+                }
+            ))
 
         temperature *= alpha
 
     found = current == goal
+    final_path = _loop_erased_path(path) if found else []
     elapsed = (time.time() - t0) * 1000
     return PathResult(
         algo_name='SA',
         start=start, goal=goal,
         steps=steps,
-        path=path if found else [],
+        path=final_path,
         total_visited=len(visited),
         found=found,
         elapsed_ms=elapsed
