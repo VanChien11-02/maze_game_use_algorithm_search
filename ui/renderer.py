@@ -393,8 +393,30 @@ class Renderer:
             _draw_pill(panel, self.f_tiny, status, C.HUD_W - pad - 108, 556, 108, C.VIZ_PATH)
             y = _draw_path_log(panel, self.f_log, path_log, pad, 580, C.HUD_W - pad * 2, 614)
             desc = step.description or ""
-            _draw_wrapped_limited(panel, self.f_tiny, desc, pad, C.HUD_W - pad * 2,
-                                  y + 3, C.HUD_MUTED, max_lines=1)
+
+            if game.current_algo == "Alpha-Beta":
+                extra = step.extra
+                turn = extra.get("turn", "--")
+                score = extra.get("score", 0)
+                nodes = extra.get("nodes", 0)
+                prunes = extra.get("prunes", 0)
+
+                desc = (
+                    f"{turn} | score={score:.1f} | "
+                    f"nodes={nodes} | prunes={prunes} | "
+                    f"Monster={extra.get('monster_pos')}"
+                )
+
+            _draw_wrapped_limited(
+                panel,
+                self.f_tiny,
+                desc,
+                pad,
+                C.HUD_W - pad * 2,
+                y + 3,
+                C.HUD_MUTED,
+                max_lines=1
+            )
         else:
             text = self.f_tiny.render("Chua co log. Hay chon thuat toan va nhan PLAY.", True, C.HUD_MUTED)
             panel.blit(text, (pad, 582))
@@ -532,7 +554,12 @@ class Renderer:
         _draw_card(self.screen, rect)
         pygame.draw.rect(self.screen, C.VIZ_PATH if game.result.found else C.VIZ_BACKTRACK, rect, 2, border_radius=14)
 
-        title = "VICTORY" if game.result.found else "NO PATH FOUND"
+        caught = (
+            game.current_algo == 'Alpha-Beta'
+            and game.result.steps
+            and game.result.steps[-1].extra.get('caught')
+        )
+        title = "VICTORY" if game.result.found else "CAUGHT" if caught else "NO PATH FOUND"
         color = C.GOAL_COLOR if game.result.found else C.VIZ_BACKTRACK
         title_s = self.f_title.render(title, True, color)
         self.screen.blit(title_s, (rect.centerx - title_s.get_width() // 2, y + 22))

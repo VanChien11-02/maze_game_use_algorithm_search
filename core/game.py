@@ -223,9 +223,20 @@ class Game:
                                 f"Time: {self.result.elapsed_ms:.1f}ms")
                 self.message_color = C.START_COLOR
             else:
-                self.message = (f"[{self.current_algo}] Khong tim thay duong! "
-                                f"Visited: {self.result.total_visited} o")
-                self.message_color = C.VIZ_BACKTRACK
+                last_extra = self.result.steps[-1].extra if self.result.steps else {}
+
+                if self.current_algo == "Alpha-Beta" and last_extra.get("caught"):
+                    self.message = (
+                        "[Alpha-Beta] Monster thắng! Người chơi bị bắt | "
+                        f"Visited: {self.result.total_visited} ô"
+                    )
+                    self.message_color = C.VIZ_BACKTRACK
+                else:
+                    self.message = (
+                        f"[{self.current_algo}] Không tìm thấy đường! "
+                        f"Visited: {self.result.total_visited} ô"
+        )
+        self.message_color = C.VIZ_BACKTRACK
 
     def update(self, dt: float):
         self._tick += dt

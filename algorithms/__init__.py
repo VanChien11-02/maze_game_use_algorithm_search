@@ -37,6 +37,7 @@ from algorithms.complex_env.bfs_partial import run_bfs_partial
 from algorithms.complex_env.belief_dfs import run_belief_dfs
 from algorithms.csp.backtracking    import run_backtracking
 from algorithms.csp.min_conflicts   import run_min_conflicts
+from algorithms.adversarial.alpha_beta import run_alpha_beta
 
 # Map: key (khop voi config.ALGO_GROUPS) -> ham chay
 ALGO_RUNNERS = {
@@ -50,4 +51,5 @@ ALGO_RUNNERS = {
     'BS-DFS':      run_belief_dfs,
     'Backtrack':   run_backtracking,
     'Min-Conflicts': run_min_conflicts,
+    'Alpha-Beta':  run_alpha_beta,
 }

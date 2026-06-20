@@ -11,7 +11,7 @@ Nâng cấp UI:
 import math
 import random
 from typing import List, Tuple, Set
-
+from core.monster import Monster
 import pygame
 
 import config as C
@@ -144,14 +144,29 @@ class Maze:
         # 3. Start & Goal markers
         self._draw_start_goal(surface, ts)
 
-        # 4. Player sprite: khi thuat toan dang chay, nhan vat di theo node hien tai
+        monster_pos = None
+        monster_alert = False
+
+        if result and result.steps and current_step > 0:
+            step_idx = min(current_step - 1, len(result.steps) - 1)
+            monster_pos = result.steps[step_idx].extra.get("monster_pos")
+
         actor_pos = player_pos
         if result and result.steps and current_step > 0:
             step_idx = min(current_step - 1, len(result.steps) - 1)
             if result.steps[step_idx].current:
                 actor_pos = result.steps[step_idx].current
+
+        if monster_pos:
+            monster_alert = actor_pos == monster_pos
+            if not monster_alert:
+                self._draw_monster(surface, monster_pos, ts, False)
+
         if actor_pos:
             self._draw_player(surface, actor_pos, ts)
+
+        if monster_pos and monster_alert:
+            self._draw_monster(surface, monster_pos, ts, True)
 
     def _draw_map_backdrop(self, surface: pygame.Surface):
         """Animated background: scanline + slow cyber dust / stars."""
@@ -223,7 +238,46 @@ class Maze:
                 int(C.VIZ_VISITED[2] * (1-t) + C.VIZ_FRONTIER[2] * t),
             )
             self._draw_cell_overlay(surface, r, c, col, 62 + int(54*t), inset=4)
+        pruned_cells = step.extra.get("pruned_cells", set())
 
+        for pos in pruned_cells:
+            if pos in (self.start, self.goal):
+                continue
+
+            # Không vẽ nếu ô đó nằm trên đường thật
+            if pos in step.path_so_far:
+                continue
+
+            r, c = pos
+
+            self._draw_cell_overlay(
+                surface,
+                r,
+                c,
+                (255, 60, 100),
+                90,
+                inset=6,
+                glow=False
+            )
+
+            x = c * ts
+            y = r * ts
+
+            pygame.draw.line(
+                surface,
+                (255, 80, 120),
+                (x + ts * 0.30, y + ts * 0.30),
+                (x + ts * 0.70, y + ts * 0.70),
+                max(2, ts // 10)
+            )
+
+            pygame.draw.line(
+                surface,
+                (255, 80, 120),
+                (x + ts * 0.70, y + ts * 0.30),
+                (x + ts * 0.30, y + ts * 0.70),
+                max(2, ts // 10)
+            )
         for pos in step.frontier:
             if pos in (self.start, self.goal):
                 continue
@@ -474,6 +528,91 @@ class Maze:
         pygame.draw.rect(surface, (35, 25, 8), (cx - 2*unit, top + unit, 4*unit, 5*unit), 1)
 
     # ── Player sprite ────────────────────────────────────────
+
+    def _draw_monster(self, surface: pygame.Surface, pos: Tuple[int, int],
+                      ts: int, alert: bool = False):
+        r, c = pos
+        x, y = c * ts, r * ts
+        pulse = abs(math.sin(self._tick * 6.5))
+        color = C.MONSTER_GLOW if alert else C.MONSTER_COLOR
+
+        glow = pygame.Surface((ts * 2, ts * 2), pygame.SRCALPHA)
+        center = (ts, ts)
+        pygame.draw.circle(glow, (*color, 75 + int(60 * pulse)),
+                           center, max(8, ts // 2 + int(5 * pulse)))
+        pygame.draw.circle(glow, (*color, 45), center, max(10, ts // 2 + 7), 2)
+        surface.blit(glow, (x - ts // 2, y - ts // 2))
+
+        shadow_h = max(3, ts // 5)
+        pygame.draw.ellipse(surface, (0, 0, 0, 125),
+                            (x + ts // 6, y + ts - shadow_h - 1,
+                             ts * 2 // 3, shadow_h))
+
+        unit = max(2, ts // 10)
+        sprite_w = unit * 9
+        sprite_h = unit * 9
+        ox = x + (ts - sprite_w) // 2
+        oy = y + (ts - sprite_h) // 2 + int(math.sin(self._tick * 9) * max(1, unit // 2))
+        frame = int(self._tick * 8) % 2
+
+        dark = (35, 8, 22)
+        body = color
+        body_dark = (150, 28, 62)
+        eye = (255, 245, 120) if not alert else C.WHITE
+        tooth = (245, 250, 255)
+        outline = (8, 4, 12)
+
+        def px(col, row, w, h, draw_color):
+            pygame.draw.rect(
+                surface,
+                draw_color,
+                (ox + col * unit, oy + row * unit, w * unit, h * unit),
+            )
+
+        px(2, 0, 2, 1, outline)
+        px(5, 0, 2, 1, outline)
+        px(1, 1, 7, 1, outline)
+        px(0, 2, 9, 5, outline)
+        px(1, 7, 7, 1, outline)
+
+        px(2, 0, 1, 1, C.MONSTER_GLOW)
+        px(6, 0, 1, 1, C.MONSTER_GLOW)
+        px(1, 1, 2, 1, C.MONSTER_GLOW)
+        px(6, 1, 2, 1, C.MONSTER_GLOW)
+
+        px(1, 2, 7, 4, body)
+        px(2, 1, 5, 1, body)
+        px(2, 6, 5, 1, body_dark)
+        px(3, 7, 3, 1, dark)
+
+        eye_shift = 1 if frame else 0
+        px(2 + eye_shift, 3, 1, 1, eye)
+        px(6 - eye_shift, 3, 1, 1, eye)
+        px(3, 5, 3, 1, dark)
+        px(3, 6, 1, 1, tooth)
+        px(5, 6, 1, 1, tooth)
+
+        if frame == 0:
+            px(0, 4, 1, 2, body_dark)
+            px(8, 4, 1, 2, body_dark)
+            px(1, 8, 2, 1, dark)
+            px(6, 8, 2, 1, dark)
+        else:
+            px(0, 3, 1, 2, body_dark)
+            px(8, 5, 1, 2, body_dark)
+            px(2, 8, 2, 1, dark)
+            px(5, 8, 2, 1, dark)
+
+        pygame.draw.rect(surface, C.MONSTER_GLOW,
+                         (ox, oy, sprite_w, sprite_h), 1)
+
+        if ts >= 18:
+            font = self._get_marker_font()
+            tag = font.render("MIN", True, C.BLACK)
+            rect = pygame.Rect(x + ts // 2 - tag.get_width() - 7,
+                               y + 2, tag.get_width() + 8, tag.get_height() + 3)
+            pygame.draw.rect(surface, C.MONSTER_GLOW, rect, border_radius=4)
+            surface.blit(tag, (rect.x + 4, rect.y + 1))
 
     def _draw_player(self, surface: pygame.Surface, pos: Tuple[int, int], ts: int):
         r, c = pos

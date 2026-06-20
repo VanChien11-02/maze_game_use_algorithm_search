@@ -56,6 +56,8 @@ GOAL_COLOR    = (255, 180,   0)
 GOAL_GLOW     = (255, 220,  80)
 PLAYER_COLOR  = (90,  210, 255)
 PLAYER_OUT    = (210, 245, 255)
+MONSTER_COLOR = (255,  65, 110)
+MONSTER_GLOW  = (255, 120, 185)
 
 # Algorithm visualization
 VIZ_VISITED   = (0,   130, 255)
@@ -146,6 +148,13 @@ ALGO_GROUPS = {
             'Min-Conflicts': 'Min-Conflicts',
             # Thêm: 'AC3': 'Arc Consistency (AC-3)',
             # Thêm: 'FC':  'Forward Checking',
+        },
+    },
+    'Adversarial Search': {
+        'vi_name': 'Tìm kiếm đối kháng',
+        'color':   (225,  80, 115),
+        'algorithms': {
+            'Alpha-Beta': 'Alpha-Beta Pruning Monster',
         },
     },
 }
