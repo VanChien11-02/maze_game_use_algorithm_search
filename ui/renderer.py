@@ -297,6 +297,22 @@ class Renderer:
                 ("Ket thuc:",   str(result.goal),                    C.GOAL_COLOR),
                 ("Nhom:",       C.get_algo_group(game.current_algo), (140, 160, 220)),
                 ("Algorithm:",  game.current_algo,                   C.GOLD_COLOR),
+            ]
+            
+            if game.current_algo == 'Minimax' and step:
+                p_state = step.extra.get('player_state', 'NORMAL')
+                g_state = step.extra.get('ghost_state', 'WANDER')
+                p_col = (100, 200, 255) if p_state == 'NORMAL' else (255, 100, 100)
+                g_col = (100, 255, 100) if g_state == 'WANDER' else (255, 100, 100)
+                
+                rows.extend([
+                    ("__SEP__", "", C.HUD_BORDER),
+                    ("Trang thai AI:", p_state, p_col),
+                    ("Quai vat:", g_state, g_col),
+                    ("Khoang cach:", f"{step.extra.get('dist_ghost', 0)} o (Aggro: <=6)", C.GOLD_COLOR)
+                ])
+
+            rows.extend([
                 ("__SEP__",     "",                                  C.HUD_BORDER),
                 ("Buoc:",       f"{game.current_step_idx}/{result.total_steps}", C.HUD_TEXT),
                 ("Da duyet:",   f"{v_cnt} o",                        C.VIZ_VISITED),
@@ -304,7 +320,7 @@ class Renderer:
                 ("Duong di:",   f"{p_len} buoc" if result.found else "Chua co",
                                 C.VIZ_PATH if result.found else C.VIZ_BACKTRACK),
                 ("Thoi gian:",  f"{result.elapsed_ms:.1f} ms",       C.GOLD_COLOR),
-            ]
+            ])
 
         for label, val, col in rows:
             if label == "__SEP__":

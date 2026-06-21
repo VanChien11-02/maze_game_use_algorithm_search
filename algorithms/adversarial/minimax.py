@@ -1,18 +1,18 @@
 # algorithms/adversarial/minimax.py — Nhóm 6: Tìm kiếm đối kháng — Minimax
 """
-Minimax — Thuật toán tìm kiếm đối kháng với Alpha-Beta Pruning.
+Minimax — Thuật toán tìm kiếm đối kháng với Alpha-Beta Pruning kết hợp mô hình FSM.
 ════════════════════════════════════════════════════
 Nhóm: Adversarial Search (Tìm kiếm đối kháng)
-Bài toán: MAX (Người chơi) tìm đường tới Goal, MIN (Quái vật) chủ động săn đuổi MAX.
+Bài toán: MAX (Người chơi) tìm đường tới Goal, MIN (Quái vật) săn đuổi MAX.
 
-Hàm đánh giá (Evaluation Function):
-    Score = (Khoảng cách tới quái vật) * 1.5 - (Khoảng cách tới đích) - (Hình phạt lặp ô)
-
-Nếu bị quái vật bắt (cùng ô): -99999
-Nếu đến đích (Goal): 99999
+FSM:
+    - Quái vật (Monster): WANDER (đi random chậm) hoặc CHASE (đuổi sát bằng A*)
+    - Người chơi (Player): NORMAL (chạy nhanh bằng A*) hoặc ESCAPE (né bằng Minimax)
 """
 
 import time
+import heapq
+import random
 from collections import deque
 from typing import List, Tuple
 from algorithms.base import Step, PathResult
@@ -59,6 +59,33 @@ def find_path_bfs(grid: List[List[int]], start: Tuple[int, int], goal: Tuple[int
     return []
 
 
+def find_path_astar(grid: List[List[int]], start: Tuple[int, int], goal: Tuple[int, int], rows: int, cols: int) -> List[Tuple[int, int]]:
+    """Thuật toán A* để tìm đường đi ngắn nhất hoàn chỉnh."""
+    if start == goal:
+        return [start]
+    open_set = []
+    # Lưu dạng: (f_score, g_score, current, path)
+    heapq.heappush(open_set, (manhattan(start, goal), 0, start, [start]))
+    visited = {start: 0}
+    
+    while open_set:
+        f, g, curr, path = heapq.heappop(open_set)
+        if curr == goal:
+            return path
+        
+        r, c = curr
+        for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            nr, nc = r + dr, c + dc
+            npos = (nr, nc)
+            if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == 1:
+                new_g = g + 1
+                if npos not in visited or new_g < visited[npos]:
+                    visited[npos] = new_g
+                    h = manhattan(npos, goal)
+                    heapq.heappush(open_set, (new_g + h, new_g, npos, path + [npos]))
+    return []
+
+
 def minimax_search(p_pos: Tuple[int, int],
                    g_pos: Tuple[int, int],
                    depth: int,
@@ -68,26 +95,29 @@ def minimax_search(p_pos: Tuple[int, int],
                    grid: List[List[int]],
                    goal: Tuple[int, int],
                    rows: int, cols: int,
-                   path_so_far: List[Tuple[int, int]]) -> Tuple[float, Tuple[int, int]]:
+                   path_so_far: List[Tuple[int, int]],
+                   simulated_steps: int) -> Tuple[float, Tuple[int, int]]:
     """
-    Tìm kiếm cây trò chơi Minimax với cắt tỉa Alpha-Beta.
-    MAX = Người chơi, MIN = Quái vật.
+    Tìm kiếm cây trò chơi Minimax với cắt tỉa Alpha-Beta và hình phạt số bước.
     """
     if p_pos == goal:
-        return 100000.0 + depth, p_pos
+        return 100000.0 + depth - simulated_steps, p_pos
     if p_pos == g_pos:
-        return -100000.0 - depth, p_pos
+        return -100000.0 - depth - simulated_steps, p_pos
     if depth == 0:
         dist_ghost = manhattan(p_pos, g_pos)
         dist_goal = manhattan(p_pos, goal)
-        score = dist_ghost * 1.5 - dist_goal
         
-        # Hình phạt lặp ô dựa trên độ gần của bước đi (recency penalty) để chống vòng lặp và giúp thoát ngõ cụt
+        # Hình phạt lặp ô (recency penalty)
         recency_penalty = 0.0
         for idx, visited_pos in enumerate(reversed(path_so_far[-15:])):
             if p_pos == visited_pos:
                 recency_penalty += (15 - idx) * 12.0
-        score -= recency_penalty
+                
+        # Trừ điểm số bước đi để ép AI tối ưu thời gian (step penalty)
+        step_penalty = simulated_steps * 2.0
+        
+        score = dist_ghost * 1.5 - dist_goal - step_penalty - recency_penalty
         return score, p_pos
 
     if is_max_turn:
@@ -95,9 +125,9 @@ def minimax_search(p_pos: Tuple[int, int],
         best_move = p_pos
         moves = get_valid_moves(grid, p_pos, rows, cols)
         if not moves:
-            return -100000.0, p_pos
+            return -100000.0 - simulated_steps, p_pos
         for mv in moves:
-            val, _ = minimax_search(mv, g_pos, depth - 1, alpha, beta, False, grid, goal, rows, cols, path_so_far)
+            val, _ = minimax_search(mv, g_pos, depth - 1, alpha, beta, False, grid, goal, rows, cols, path_so_far, simulated_steps + 1)
             if val > max_val:
                 max_val = val
                 best_move = mv
@@ -110,9 +140,9 @@ def minimax_search(p_pos: Tuple[int, int],
         best_move = g_pos
         moves = get_valid_moves(grid, g_pos, rows, cols)
         if not moves:
-            return 100000.0, g_pos
+            return 100000.0 - simulated_steps, g_pos
         for mv in moves:
-            val, _ = minimax_search(p_pos, mv, depth - 1, alpha, beta, True, grid, goal, rows, cols, path_so_far)
+            val, _ = minimax_search(p_pos, mv, depth - 1, alpha, beta, True, grid, goal, rows, cols, path_so_far, simulated_steps + 1)
             if val < min_val:
                 min_val = val
                 best_move = mv
@@ -127,17 +157,16 @@ def run_minimax(grid: List[List[int]],
                 goal: Tuple[int, int],
                 rows: int, cols: int) -> PathResult:
     """
-    Chạy mô phỏng trận đấu đối kháng giữa Player (Minimax) và Ghost (Chasing).
+    Chạy mô phỏng trận đấu sử dụng Máy trạng thái hữu hạn (FSM).
     """
     t0 = time.time()
     steps: List[Step] = []
     
-    # Tìm vị trí xuất phát cho quái vật (khoảng 1/3 quãng đường của BFS path)
+    # Sinh quái vật tại 1/3 đường đi BFS ban đầu
     bfs_path = find_path_bfs(grid, start, goal, rows, cols)
     if len(bfs_path) > 9:
         ghost_start = bfs_path[max(len(bfs_path) // 3, 4)]
     else:
-        # Nếu đường đi quá ngắn, lấy một ô sàn bất kỳ xa start
         ghost_start = goal
         
     p_pos = start
@@ -147,8 +176,10 @@ def run_minimax(grid: List[List[int]],
     step_num = 0
     max_steps = 250
     found = False
+    
+    aggro_radius = 6
 
-    # Bước 0: Khởi đầu
+    # Đưa bước 0 vào
     steps.append(Step(
         step_num=0,
         current=p_pos,
@@ -158,28 +189,49 @@ def run_minimax(grid: List[List[int]],
         description=f"[Bắt đầu] Người chơi tại {p_pos}, Quái vật tại {g_pos}.",
         extra={
             'ghost': g_pos,
-            'dist_goal': manhattan(p_pos, goal),
             'dist_ghost': manhattan(p_pos, g_pos),
-            'score': 0.0
+            'player_state': 'NORMAL',
+            'ghost_state': 'WANDER',
+            'dist_goal': manhattan(p_pos, goal)
         }
     ))
 
     while step_num < max_steps:
-        # 1. Người chơi (MAX) chọn bước đi bằng Minimax
-        # Sử dụng depth=3 hoặc 4 để đảm bảo phản hồi nhanh chóng
-        score, best_move = minimax_search(p_pos, g_pos, 3, -float('inf'), float('inf'), True, grid, goal, rows, cols, path_so_far)
+        # Cập nhật FSM
+        dist = manhattan(p_pos, g_pos)
+        is_aggro = (dist <= aggro_radius)
         
-        if best_move is None or best_move == p_pos:
-            valid_moves = get_valid_moves(grid, p_pos, rows, cols)
-            p_pos = valid_moves[0] if valid_moves else p_pos
+        p_state = 'ESCAPE' if is_aggro else 'NORMAL'
+        g_state = 'CHASE' if is_aggro else 'WANDER'
+        
+        # 1. Lượt Người chơi (AI)
+        if p_state == 'NORMAL':
+            # Đi bình thường bằng A* thẳng tới goal
+            p_path = find_path_astar(grid, p_pos, goal, rows, cols)
+            if len(p_path) >= 2:
+                p_pos = p_path[1]
+            else:
+                # Fallback di chuyển ngẫu nhiên
+                valid = get_valid_moves(grid, p_pos, rows, cols)
+                if valid:
+                    p_pos = random.choice(valid)
+            score_desc = "A* dẫn đường"
         else:
-            p_pos = best_move
-            
+            # Gặp nguy hiểm, kích hoạt Minimax
+            score, best_move = minimax_search(p_pos, g_pos, 3, -float('inf'), float('inf'), True, grid, goal, rows, cols, path_so_far, step_num)
+            if best_move and best_move != p_pos:
+                p_pos = best_move
+            else:
+                valid = get_valid_moves(grid, p_pos, rows, cols)
+                if valid:
+                    p_pos = random.choice(valid)
+            score_desc = f"Minimax đ.giá {score:.1f}"
+
         path_so_far.append(p_pos)
         visited.add(p_pos)
         step_num += 1
 
-        # Kiểm tra nếu người chơi chạm đích trước khi quái vật di chuyển
+        # Kiểm tra thắng cuộc ngay khi người chơi di chuyển
         if p_pos == goal:
             steps.append(Step(
                 step_num=step_num,
@@ -187,18 +239,19 @@ def run_minimax(grid: List[List[int]],
                 frontier=[],
                 visited=set(visited),
                 path_so_far=list(path_so_far),
-                description=f"[Bước {step_num}] Người chơi di chuyển đến {p_pos} và THÀNH CÔNG đến đích!",
+                description=f"[Bước {step_num}] AI ({p_state}) đến đích thành công!",
                 extra={
                     'ghost': g_pos,
-                    'dist_goal': 0,
                     'dist_ghost': manhattan(p_pos, g_pos),
-                    'score': 99999.0
+                    'player_state': p_state,
+                    'ghost_state': g_state,
+                    'dist_goal': 0
                 }
             ))
             found = True
             break
 
-        # Kiểm tra nếu người chơi tự đi vào quái vật
+        # Kiểm tra va chạm
         if p_pos == g_pos:
             steps.append(Step(
                 step_num=step_num,
@@ -206,29 +259,36 @@ def run_minimax(grid: List[List[int]],
                 frontier=[],
                 visited=set(visited),
                 path_so_far=list(path_so_far),
-                description=f"[Bước {step_num}] Người chơi đi nhầm vào quái vật tại {p_pos} và BỊ BẮT!",
+                description=f"[Bước {step_num}] AI va phải quái vật tại {p_pos} và BỊ BẮT!",
                 extra={
                     'ghost': g_pos,
-                    'dist_goal': manhattan(p_pos, goal),
                     'dist_ghost': 0,
-                    'score': -99999.0
+                    'player_state': p_state,
+                    'ghost_state': g_state,
+                    'dist_goal': manhattan(p_pos, goal)
                 }
             ))
             found = False
             break
 
-        # 2. Quái vật (MIN) di chuyển đuổi theo người chơi (Greedy Chasing)
-        g_moves = get_valid_moves(grid, g_pos, rows, cols)
-        best_g_move = g_pos
-        min_g_dist = float('inf')
-        for mv in g_moves:
-            d = manhattan(mv, p_pos)
-            if d < min_g_dist:
-                min_g_dist = d
-                best_g_move = mv
-        g_pos = best_g_move
+        # 2. Lượt Quái vật
+        # Nếu WANDER, quái đi random và chỉ di chuyển mỗi 2 bước (bước chẵn)
+        if g_state == 'WANDER':
+            if step_num % 2 == 0:
+                g_moves = get_valid_moves(grid, g_pos, rows, cols)
+                if g_moves:
+                    g_pos = random.choice(g_moves)
+                g_desc = "Quái dạo chơi (WANDER)"
+            else:
+                g_desc = "Quái đứng yên (tốc độ 1/2)"
+        else:
+            # CHASE: quái dùng A* đuổi theo sát nút AI
+            g_path = find_path_astar(grid, g_pos, p_pos, rows, cols)
+            if len(g_path) >= 2:
+                g_pos = g_path[1]
+            g_desc = "Quái đuổi gấp (CHASE bằng A*)"
 
-        # Kiểm tra nếu quái vật vồ trúng người chơi
+        # Kiểm tra nếu quái bắt được AI
         if g_pos == p_pos:
             steps.append(Step(
                 step_num=step_num,
@@ -236,20 +296,21 @@ def run_minimax(grid: List[List[int]],
                 frontier=[],
                 visited=set(visited),
                 path_so_far=list(path_so_far),
-                description=f"[Bước {step_num}] Quái vật di chuyển đến {g_pos} và BẮT được người chơi!",
+                description=f"[Bước {step_num}] Quái bắt được AI tại {g_pos}!",
                 extra={
                     'ghost': g_pos,
-                    'dist_goal': manhattan(p_pos, goal),
                     'dist_ghost': 0,
-                    'score': -99999.0
+                    'player_state': p_state,
+                    'ghost_state': g_state,
+                    'dist_goal': manhattan(p_pos, goal)
                 }
             ))
             found = False
             break
 
-        # Lưu bước đi bình thường
-        desc = (f"[Bước {step_num}] Người chơi đi đến {p_pos} (Minimax đ.giá {score:.1f}). "
-                f"Quái vật đuổi tới {g_pos}.")
+        # Ghi nhận bước đi bình thường
+        desc = (f"[Bước {step_num}] AI ở trạng thái {p_state} ({score_desc}). "
+                f"{g_desc} tại {g_pos}.")
         steps.append(Step(
             step_num=step_num,
             current=p_pos,
@@ -259,16 +320,15 @@ def run_minimax(grid: List[List[int]],
             description=desc,
             extra={
                 'ghost': g_pos,
-                'dist_goal': manhattan(p_pos, goal),
                 'dist_ghost': manhattan(p_pos, g_pos),
-                'score': score
+                'player_state': p_state,
+                'ghost_state': g_state,
+                'dist_goal': manhattan(p_pos, goal)
             }
         ))
 
     elapsed = (time.time() - t0) * 1000
-    # Nếu hết số bước tối đa mà chưa về đích/bị bắt
     if step_num >= max_steps and not found:
-        # Ghi đè mô tả cuối cùng
         steps[-1].description = f"[Hết giờ] Không thể đến đích sau {max_steps} bước."
 
     return PathResult(
