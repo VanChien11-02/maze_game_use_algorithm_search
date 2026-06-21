@@ -189,12 +189,27 @@ class Renderer:
         if (game.current_algo == 'BFS-PO'
                 and game.result and game.current_step):
             known_cells = game.current_step.extra.get('known_cells')
+
+        ghost_pos = None
+        selected_algo = self.get_selected_algo()
+        if game.current_algo == 'Minimax' or (game.playback_state == PlaybackState.IDLE and selected_algo == 'Minimax'):
+            if game.result and game.current_step:
+                ghost_pos = game.current_step.extra.get('ghost')
+            else:
+                from algorithms.adversarial.minimax import find_path_bfs
+                bfs_path = find_path_bfs(game.maze.grid, game.maze.start, game.maze.goal, C.ROWS, C.COLS)
+                if len(bfs_path) > 9:
+                    ghost_pos = bfs_path[max(len(bfs_path) // 3, 4)]
+                elif bfs_path:
+                    ghost_pos = game.maze.goal
+
         game.maze.draw(
             map_surf,
             result=game.result,
             current_step=game.current_step_idx,
             player_pos=game.player_pos,
             known_cells=known_cells,
+            ghost_pos=ghost_pos,
         )
         pygame.draw.rect(self.screen, C.HUD_BORDER, (0, 0, C.MAP_W, C.MAP_H), 2)
 

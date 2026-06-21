@@ -114,6 +114,13 @@ ALGO_GROUPS = {
             # Thêm: 'FC':  'Forward Checking',
         },
     },
+    'Adversarial Search': {
+        'vi_name': 'Tìm kiếm đối kháng',
+        'color':   (210,  50, 100),
+        'algorithms': {
+            'Minimax': 'Minimax Algorithm',
+        },
+    },
 }
 
 # Danh sách nhóm (giữ thứ tự)

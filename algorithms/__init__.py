@@ -32,6 +32,7 @@ from algorithms.informed.astar      import run_astar
 from algorithms.local.steepest_hc   import run_steepest_hc
 from algorithms.complex_env.bfs_partial import run_bfs_partial
 from algorithms.csp.backtracking    import run_backtracking
+from algorithms.adversarial.minimax import run_minimax
 
 # Map: key (khop voi config.ALGO_GROUPS) -> ham chay
 ALGO_RUNNERS = {
@@ -40,4 +41,5 @@ ALGO_RUNNERS = {
     'Steepest HC': run_steepest_hc,
     'BFS-PO':      run_bfs_partial,
     'Backtrack':   run_backtracking,
+    'Minimax':     run_minimax,
 }

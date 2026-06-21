@@ -40,7 +40,7 @@ class Game:
 
     def _init_maze(self):
         grid  = generate_maze(C.COLS, C.ROWS, seed=self.seed)
-        grid  = add_extra_passages(grid, C.ROWS, C.COLS, extra=8)
+        grid  = add_extra_passages(grid, C.ROWS, C.COLS, extra=80)
         start, goal = find_start_exit(grid, C.ROWS, C.COLS)
         self.maze = Maze(grid, C.ROWS, C.COLS, start, goal)
 

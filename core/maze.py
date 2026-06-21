@@ -61,7 +61,8 @@ class Maze:
              result: PathResult = None,
              current_step: int = 0,
              player_pos: Tuple[int,int] = None,
-             known_cells: Set[Tuple[int,int]] = None):
+             known_cells: Set[Tuple[int,int]] = None,
+             ghost_pos: Tuple[int,int] = None):
         """Vẽ mê cung + visualization overlay."""
         ts = C.TILE_SIZE
 
@@ -86,6 +87,10 @@ class Maze:
         # 4. Player sprite
         if player_pos:
             self._draw_player(surface, player_pos, ts)
+
+        # 5. Ghost sprite (quái vật đuổi theo)
+        if ghost_pos:
+            self._draw_ghost(surface, ghost_pos, ts)
 
     # ── Visualization overlay ────────────────────────────────
 
@@ -186,3 +191,30 @@ class Maze:
         pygame.draw.circle(surface, C.WHITE, (cx+3, cy-2), 3)
         pygame.draw.circle(surface, C.BLACK, (cx-3, cy-2), 1)
         pygame.draw.circle(surface, C.BLACK, (cx+3, cy-2), 1)
+
+    # ── Ghost sprite ─────────────────────────────────────────
+
+    def _draw_ghost(self, surface: pygame.Surface,
+                    pos: Tuple[int,int], ts: int):
+        r, c  = pos
+        cx, cy = c*ts + ts//2, r*ts + ts//2
+        rad   = ts//2 - 4
+        # Red glow
+        glow  = pygame.Surface((ts, ts), pygame.SRCALPHA)
+        pygame.draw.circle(glow, (255, 60, 60, 90), (ts//2, ts//2), rad+4)
+        surface.blit(glow, (c*ts, r*ts))
+        # Main body
+        pygame.draw.circle(surface, (230, 45, 45), (cx, cy), rad)
+        pygame.draw.circle(surface, (255, 100, 100), (cx, cy), rad, 2)
+        # Angry eyes
+        pygame.draw.circle(surface, C.WHITE, (cx-3, cy-2), 3)
+        pygame.draw.circle(surface, C.WHITE, (cx+3, cy-2), 3)
+        pygame.draw.circle(surface, (180, 0, 0), (cx-2, cy-2), 1)
+        pygame.draw.circle(surface, (180, 0, 0), (cx+2, cy-2), 1)
+        # Angry eyebrows
+        pygame.draw.line(surface, C.BLACK, (cx-5, cy-5), (cx-1, cy-3), 2)
+        pygame.draw.line(surface, C.BLACK, (cx+5, cy-5), (cx+1, cy-3), 2)
+        # 'G' marker inside
+        font = self._get_marker_font()
+        lbl = font.render('G', True, C.WHITE)
+        surface.blit(lbl, (cx - lbl.get_width()//2, cy + 1))
