@@ -41,12 +41,12 @@ def run_greedy(grid: List[List[int]],
 
     step_num = 0
     while frontier_heap:
-        _, _, current = heapq.heappop(frontier_heap)
-        if current in reached:
-            continue
+        while frontier_heap and frontier_heap[0][2] not in frontier_set:
+            heapq.heappop(frontier_heap)
+        if not frontier_heap:
+            break
 
-        frontier_set.discard(current)
-        reached.add(current)
+        _, _, current = frontier_heap[0]
         step_num += 1
 
         h_cur = manhattan(current, goal)
@@ -58,7 +58,7 @@ def run_greedy(grid: List[List[int]],
             visited=set(reached),
             path_so_far=path_cur,
             description=(
-                f"[Step {step_num}] Pick {current} with smallest h={h_cur} | "
+                f"[Step {step_num}] Choose {current} with smallest h={h_cur} | "
                 f"Frontier={len(frontier_set)} | Reached={len(reached)}"
             ),
             extra={'h': h_cur, 'mode': 'select'}
@@ -75,6 +75,10 @@ def run_greedy(grid: List[List[int]],
                 found=True,
                 elapsed_ms=elapsed
             )
+
+        heapq.heappop(frontier_heap)
+        frontier_set.discard(current)
+        reached.add(current)
 
         r, c = current
         added = []
@@ -95,18 +99,24 @@ def run_greedy(grid: List[List[int]],
             frontier_set.add(npos)
             added.append((npos, h_new))
 
-        if added:
-            step_num += 1
-            added_text = ", ".join(f"{pos}:h={h}" for pos, h in added[:4])
-            steps.append(Step(
-                step_num=step_num,
-                current=current,
-                frontier=list(frontier_set),
-                visited=set(reached),
-                path_so_far=path_cur,
-                description=f"[Step {step_num}] Add neighbors by Manhattan h | {added_text}",
-                extra={'h': h_cur, 'children_added': [pos for pos, _ in added], 'mode': 'expand'}
-            ))
+        step_num += 1
+        added_text = ", ".join(f"{pos}:h={h}" for pos, h in added[:4]) or "none"
+        steps.append(Step(
+            step_num=step_num,
+            current=current,
+            frontier=list(frontier_set),
+            visited=set(reached),
+            path_so_far=path_cur,
+            description=(
+                f"[Step {step_num}] Move {current} to Reached; "
+                f"add neighbors by Manhattan h | {added_text}"
+            ),
+            extra={
+                'h': h_cur,
+                'children_added': [pos for pos, _ in added],
+                'mode': 'expand',
+            }
+        ))
 
     elapsed = (time.time() - t0) * 1000
     return PathResult(

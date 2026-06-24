@@ -268,6 +268,7 @@ class Renderer:
             result=game.result,
             current_step=game.current_step_idx,
             player_pos=game.player_pos,
+            player_trail=game.player_trail,
             known_cells=known_cells,
         )
         if game.race_mode and game.compare_result:
@@ -276,7 +277,8 @@ class Renderer:
                 game.result,
                 game.current_step_idx,
                 C.START_COLOR,
-                "A"
+                "A",
+                route_style="solid",
             )
 
             game.maze.draw_race_agent(
@@ -284,7 +286,8 @@ class Renderer:
                 game.compare_result,
                 game.compare_step_idx,
                 C.PLAYER_COLOR,
-                "B"
+                "B",
+                route_style="dashed",
             )
         pygame.draw.rect(self.screen, C.HUD_BORDER, (0, 0, C.MAP_W, C.MAP_H), 2)
 
@@ -350,7 +353,8 @@ class Renderer:
         panel.blit(tile_s, (pad + 258, 297))
         # mini legend pixels
         lx, ly = pad, 282
-        for label, color in [("Wall", C.WALL_LIGHT), ("Visited", C.VIZ_VISITED), ("Path", C.VIZ_PATH), ("Player", C.PLAYER_COLOR)]:
+        next_color = C.VIZ_UPCOMING_COLORS[0]
+        for label, color in [("Wall", C.WALL_LIGHT), ("Trail", C.PLAYER_TRAIL_COLOR), ("Next", next_color), ("Visited", C.VIZ_VISITED), ("Path", C.VIZ_PATH), ("Player", C.PLAYER_COLOR)]:
             pygame.draw.rect(panel, color, (lx, ly+2, 10, 10), border_radius=2)
             txt = self.f_tiny.render(label, True, C.HUD_MUTED)
             panel.blit(txt, (lx+14, ly))
@@ -384,6 +388,14 @@ class Renderer:
                 rx = int(ox + c * cell_w); ry = int(oy + r * cell_h)
                 rw = max(1, int(cell_w + 0.8)); rh = max(1, int(cell_h + 0.8))
                 pygame.draw.rect(panel, col, (rx, ry, rw, rh))
+        for rr, cc in game.player_trail:
+            if not (0 <= rr < rows and 0 <= cc < cols):
+                continue
+            rx = int(ox + cc * cell_w)
+            ry = int(oy + rr * cell_h)
+            rw = max(1, int(cell_w + 0.8))
+            rh = max(1, int(cell_h + 0.8))
+            pygame.draw.rect(panel, C.PLAYER_TRAIL_COLOR, (rx, ry, rw, rh))
         def map_point(pos):
             rr, cc = pos
             px = int(ox + cc * cell_w + cell_w / 2)
@@ -539,6 +551,7 @@ class Renderer:
             ("T", "Toc do"),
             ("H", "Theme"),
             ("M", "Race"),
+            ("P", "Preview"),
             ("Esc", "Menu"),
         ]
         x = pad

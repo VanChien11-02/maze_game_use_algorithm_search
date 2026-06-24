@@ -18,6 +18,7 @@ BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 LOGO_PATH  = os.path.join(BASE_DIR, 'assets', 'hcmute_logo.png')
 SHOW_ALGO_TRACE = False
 SHOW_ROUTE_LINE = True
+SHOW_UPCOMING_PREVIEW = True
 
 DIFFICULTY_PRESETS = {
     'Classic':  {'extra_ratio': 0.015, 'extra_min': 5,  'braid_ratio': 0.10},
@@ -80,6 +81,8 @@ GOAL_COLOR    = (255, 180,   0)
 GOAL_GLOW     = (255, 220,  80)
 PLAYER_COLOR  = (90,  210, 255)
 PLAYER_OUT    = (210, 245, 255)
+PLAYER_TRAIL_COLOR = (95,  255, 175)
+PLAYER_TRAIL_EDGE  = (28,  170, 120)
 MONSTER_COLOR = (255,  65, 110)
 MONSTER_GLOW  = (255, 120, 185)
 
@@ -93,6 +96,14 @@ ROUTE_CORE    = (255, 248, 215)
 ROUTE_NODE_DARK = (72, 48, 18)
 VIZ_BACKTRACK = (255,  75,  90)
 VIZ_STUCK     = (255, 100,  50)   # Steepest HC bị kẹt
+UPCOMING_PREVIEW_STEPS = 5
+VIZ_UPCOMING_COLORS = [
+    (255, 245,  95),
+    (255, 165,  55),
+    (255,  90, 150),
+    (165, 115, 255),
+    (80,  240, 255),
+]
 
 # HUD
 HUD_BG        = (8,   12,  24)
@@ -160,7 +171,7 @@ ALGO_GROUPS = {
         'color':   ( 40, 160, 170),
         'algorithms': {
             'BFS-PO': 'BFS Partially Observable',
-            'BS-DFS': 'Belief-State DFS',
+            'AND-OR': 'AND-OR Graph Search',
             # Thêm: 'Online-DFS': 'Online DFS Agent',
         },
     },

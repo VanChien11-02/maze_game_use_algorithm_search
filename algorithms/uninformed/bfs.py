@@ -86,8 +86,6 @@ def run_bfs(grid: List[List[int]],
             children_added.append(child)
 
             if child == goal:
-                frontier.append(child)
-                frontier_set.add(child)
                 path = reconstruct_path(parent, start, goal)
                 steps.append(Step(
                     step_num=step_num,

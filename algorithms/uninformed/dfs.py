@@ -8,12 +8,15 @@ Bài toán: Tìm đường đi từ Start đến Goal trong mê cung
 Trạng thái bắt đầu:
     - Vị trí: Start (r, c)
     - Stack: [Start]
-    - Visited: {}
+    - Explored: {}
 
 Các bước thực hiện:
-    - Pop ô đầu stack → là ô hiện tại
-    - Nếu là Goal → kết thúc thành công
-    - Duyệt các ô kề chưa thăm → push vào stack
+    - Nếu Start là Goal → kết thúc thành công
+    - Pop ô cuối stack → là ô hiện tại
+    - Đưa ô hiện tại vào explored
+    - Sinh các ô kề chưa có trong explored/frontier
+    - Nếu child là Goal → kết thúc thành công
+    - Nếu chưa phải Goal → push child vào stack
     - Lặp đến khi stack rỗng hoặc tìm thấy Goal
 
 Trạng thái kết thúc:
@@ -53,8 +56,9 @@ def run_dfs(grid: List[List[int]],
     t0 = time.time()
     steps: List[Step] = []
     parent = {start: None}
-    visited = set()
+    explored = set()
     stack = [start]       # Stack: LIFO — ô được thêm sau cùng xét trước
+    frontier_set = {start}
     step_num = 0
 
     # ── Bước 0: Trạng thái bắt đầu ─────────────────────────
@@ -62,66 +66,102 @@ def run_dfs(grid: List[List[int]],
         step_num=0,
         current=start,
         frontier=list(stack),
-        visited=set(visited),
+        visited=set(explored),
         path_so_far=[start],
-        description=f"[Bắt đầu] Stack = [{start}] | Visited = rỗng",
+        description=f"[Bắt đầu] LIFO stack = [{start}] | explored = rỗng",
     ))
+
+    if start == goal:
+        elapsed = (time.time() - t0) * 1000
+        return PathResult(
+            algo_name='DFS',
+            start=start, goal=goal,
+            steps=steps,
+            path=[start],
+            total_visited=0,
+            found=True,
+            elapsed_ms=elapsed
+        )
 
     while stack:
         current = stack.pop()   # LIFO — lấy phần tử cuối stack
-
-        if current in visited:
-            continue
-        visited.add(current)
+        frontier_set.discard(current)
+        explored.add(current)
         step_num += 1
 
         # Tái tạo đường đến current
         path_cur = reconstruct_path(parent, start, current)
+        children_added = []
 
-        desc = (f"[Bước {step_num}] Xét ô {current} | "
-                f"Stack còn {len(stack)} ô | Visited: {len(visited)}")
+        r, c = current
+        for dr, dc in DIRECTIONS:
+            nr, nc = r + dr, c + dc
+            child = (nr, nc)
+            if not (0 <= nr < rows and 0 <= nc < cols):
+                continue
+            if grid[nr][nc] == 0:
+                continue
+            if child in explored or child in frontier_set:
+                continue
+
+            parent[child] = current
+            children_added.append(child)
+
+            if child == goal:
+                path = reconstruct_path(parent, start, goal)
+                steps.append(Step(
+                    step_num=step_num,
+                    current=current,
+                    frontier=list(stack),
+                    visited=set(explored),
+                    path_so_far=path,
+                    description=(
+                        f"[Bước {step_num}] Mở rộng {current}; tìm thấy goal {goal}. "
+                        f"Stack={len(stack)} | explored={len(explored)}"
+                    ),
+                    extra={
+                        'stack_size': len(stack),
+                        'children_added': list(children_added),
+                        'goal_found': True,
+                    }
+                ))
+                elapsed = (time.time() - t0) * 1000
+                return PathResult(
+                    algo_name='DFS',
+                    start=start, goal=goal,
+                    steps=steps,
+                    path=path,
+                    total_visited=len(explored),
+                    found=True,
+                    elapsed_ms=elapsed
+                )
+
+            stack.append(child)
+            frontier_set.add(child)
 
         steps.append(Step(
             step_num=step_num,
             current=current,
             frontier=list(stack),
-            visited=set(visited),
+            visited=set(explored),
             path_so_far=path_cur,
-            description=desc,
+            description=(
+                f"[Bước {step_num}] Mở rộng {current}; thêm {len(children_added)} child nodes. "
+                f"Stack={len(stack)} | explored={len(explored)}"
+            ),
+            extra={
+                'stack_size': len(stack),
+                'children_added': list(children_added),
+                'goal_found': False,
+            }
         ))
-
-        # Kiểm tra Goal
-        if current == goal:
-            path = reconstruct_path(parent, start, goal)
-            elapsed = (time.time() - t0) * 1000
-            return PathResult(
-                algo_name='DFS',
-                start=start, goal=goal,
-                steps=steps,
-                path=path,
-                total_visited=len(visited),
-                found=True,
-                elapsed_ms=elapsed
-            )
-
-        # Mở rộng các ô kề
-        r, c = current
-        for dr, dc in DIRECTIONS:
-            nr, nc = r + dr, c + dc
-            npos = (nr, nc)
-            if (0 <= nr < rows and 0 <= nc < cols
-                    and grid[nr][nc] != 0
-                    and npos not in visited
-                    and npos not in parent):
-                parent[npos] = current
-                stack.append(npos)
 
     elapsed = (time.time() - t0) * 1000
     return PathResult(
         algo_name='DFS',
         start=start, goal=goal,
         steps=steps, path=[],
-        total_visited=len(visited),
+        total_visited=len(explored),
         found=False,
         elapsed_ms=elapsed
     )

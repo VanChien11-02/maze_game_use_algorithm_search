@@ -5,7 +5,7 @@ Quản lý trạng thái: maze, player, thuật toán, animation.
 
 import random
 import tracemalloc
-from typing import Optional, Tuple
+from typing import Optional, Set, Tuple
 
 import config as C
 from core.maze import Maze
@@ -30,6 +30,7 @@ class Game:
         self._init_maze()
 
         self.player_pos: Tuple[int,int] = self.maze.start
+        self.player_trail: Set[Tuple[int, int]] = {self.player_pos}
 
         self.current_algo:    Optional[str]         = None
         self.result:          Optional[PathResult]  = None
@@ -63,6 +64,7 @@ class Game:
         self.seed = random.randint(0, 99999)
         self._init_maze()
         self.player_pos = self.maze.start
+        self.player_trail = {self.player_pos}
         self.reset_algo()
         self.message = f"Mê cung mới! Seed={self.seed}"
         self.message_color = C.GOAL_COLOR
@@ -74,6 +76,7 @@ class Game:
         self.seed = random.randint(0, 99999)
         self._init_maze()
         self.player_pos = self.maze.start
+        self.player_trail = {self.player_pos}
         self.reset_algo()
         self.message = f"Matrix {size}x{size} | Tile={C.TILE_SIZE}px"
         self.message_color = C.HUD_TITLE
@@ -85,6 +88,7 @@ class Game:
         self.seed = random.randint(0, 99999)
         self._init_maze()
         self.player_pos = self.maze.start
+        self.player_trail = {self.player_pos}
         self.reset_algo()
         self.message = f"Difficulty: {name}"
         self.message_color = C.GOAL_COLOR
@@ -140,6 +144,16 @@ class Game:
         else:
             self.message = "Race Mode OFF: so sánh số liệu bình thường"
             self.message_color = C.HUD_TEXT
+
+    def toggle_preview(self):
+        C.SHOW_UPCOMING_PREVIEW = not C.SHOW_UPCOMING_PREVIEW
+        state = "ON" if C.SHOW_UPCOMING_PREVIEW else "OFF"
+        self.message = f"Preview duong sap di: {state}"
+        self.message_color = (
+            C.VIZ_UPCOMING_COLORS[0]
+            if C.SHOW_UPCOMING_PREVIEW
+            else C.HUD_MUTED
+        )
 
     def _execute_algorithm(self, algo_name: str) -> PathResult:
         runner = ALGO_RUNNERS[algo_name]
@@ -221,6 +235,7 @@ class Game:
         nr, nc = self.player_pos[0]+dr, self.player_pos[1]+dc
         if self.maze.is_walkable(nr, nc):
             self.player_pos = (nr, nc)
+            self.player_trail.add(self.player_pos)
             if self.player_pos == self.maze.goal:
                 self.message       = "Treasure Found!"
                 self.message_color = C.GOAL_COLOR

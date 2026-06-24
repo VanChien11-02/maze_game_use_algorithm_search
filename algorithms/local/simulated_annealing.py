@@ -34,20 +34,6 @@ def _seed_for(start: Tuple[int, int], goal: Tuple[int, int], rows: int, cols: in
     )
 
 
-def _weighted_neighbor(rng: random.Random, candidates: List[Tuple[int, int]],
-                       goal: Tuple[int, int], temperature: float) -> Tuple[int, int]:
-    scale = max(1.0, temperature / 3.0)
-    weights = [math.exp(-manhattan(pos, goal) / scale) for pos in candidates]
-    total = sum(weights)
-    pick = rng.random() * total
-    acc = 0.0
-    for pos, weight in zip(candidates, weights):
-        acc += weight
-        if acc >= pick:
-            return pos
-    return candidates[-1]
-
-
 def _loop_erased_path(path: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
     """Remove random-walk loops while keeping a legal start-to-goal path."""
     compact: List[Tuple[int, int]] = []
@@ -76,18 +62,13 @@ def run_simulated_annealing(grid: List[List[int]],
     current = start
     path = [start]
     visited = {start}
-    best = start
-    best_h = manhattan(start, goal)
-    rejected_streak = 0
 
     initial_temperature = max(8.0, float(rows + cols))
     temperature = initial_temperature
     min_temperature = 0.001
-    alpha = 0.9995
-    max_steps = min(45000, max(10000, rows * cols * 60))
-    sample_stride = max(1, max_steps // 1400)
-    restarts = 0
-    max_restarts = 4
+    alpha = 0.995
+    step_num = 0
+    h_start = manhattan(start, goal)
 
     steps.append(Step(
         step_num=0,
@@ -95,107 +76,65 @@ def run_simulated_annealing(grid: List[List[int]],
         frontier=[],
         visited=set(visited),
         path_so_far=list(path),
-        description=f"[Start] T={temperature:.2f} | h(Start)={best_h} | current={start}",
-        extra={'h': best_h, 'temperature': temperature, 'mode': 'start'}
+        description=f"[Start] current={start} | T0={temperature:.2f} | h(Start)={h_start}",
+        extra={'h': h_start, 'temperature': temperature, 'mode': 'start'}
     ))
 
-    for step_num in range(1, max_steps + 1):
+    while temperature > min_temperature:
         if current == goal:
-            break
-        if temperature <= min_temperature:
-            if restarts >= max_restarts:
-                break
-            restarts += 1
-            current = start
-            path = [start]
-            visited = {start}
-            temperature = initial_temperature
-            rejected_streak = 0
-            steps.append(Step(
-                step_num=step_num,
-                current=start,
-                frontier=[],
-                visited=set(visited),
-                path_so_far=list(path),
-                description=f"[Step {step_num}] restart annealing #{restarts} | T={temperature:.2f}",
-                is_backtrack=True,
-                extra={'h': manhattan(start, goal), 'temperature': temperature, 'restart': restarts}
-            ))
-            continue
+            elapsed = (time.time() - t0) * 1000
+            return PathResult(
+                algo_name='SA',
+                start=start, goal=goal,
+                steps=steps,
+                path=_loop_erased_path(path),
+                total_visited=len(visited),
+                found=True,
+                elapsed_ms=elapsed
+            )
 
         choices = _neighbors(grid, current, rows, cols)
         if not choices:
             break
 
-        # Keep the random-neighbor spirit, but bias away from immediate loops.
-        fresh = [p for p in choices if p not in visited]
-        must_escape_dead_end = not fresh
-        pool = fresh or choices
-        if rng.random() < 0.72:
-            next_pos = _weighted_neighbor(rng, pool, goal, temperature)
-        else:
-            next_pos = rng.choice(pool)
+        step_num += 1
+        next_pos = rng.choice(choices)
         h_cur = manhattan(current, goal)
         h_next = manhattan(next_pos, goal)
         delta = h_next - h_cur
 
-        accepted = False
-        improved_best = False
-        probability = 1.0 if delta < 0 else math.exp(-delta / max(temperature, 1e-9))
-        if must_escape_dead_end or delta < 0 or rng.random() < probability:
+        probability = None
+        accepted = delta < 0
+        if not accepted:
+            probability = math.exp(-delta / temperature)
+            accepted = rng.random() < probability
+
+        if accepted:
             current = next_pos
             path.append(current)
             visited.add(current)
-            accepted = True
-            rejected_streak = 0
-            if h_next < best_h:
-                best = current
-                best_h = h_next
-                improved_best = True
-        else:
-            rejected_streak += 1
-
-        reheated = False
-        if rejected_streak >= max(20, rows + cols):
-            temperature = max(temperature, max(4.0, (rows + cols) * 0.45))
-            rejected_streak = 0
-            reheated = True
 
         desc = (
             f"[Step {step_num}] next={next_pos} | h: {h_cur}->{h_next} | "
             f"delta={delta} | T={temperature:.2f} | "
             f"{'accept' if accepted else 'reject'}"
         )
-        if reheated:
-            desc += " | reheat"
-        should_record = (
-            step_num % sample_stride == 0
-            or current == goal
-            or reheated
-            or improved_best
-        )
-        if should_record:
-            steps.append(Step(
-                step_num=step_num,
-                current=current,
-                frontier=[p for p in choices if p != next_pos],
-                visited=set(visited),
-                path_so_far=list(path),
-                description=desc,
-                extra={
-                    'h': manhattan(current, goal),
-                    'h_next': h_next,
-                    'delta': delta,
-                    'temperature': temperature,
-                    'probability': probability,
-                    'accepted': accepted,
-                    'forced_escape': must_escape_dead_end,
-                    'reheated': reheated,
-                    'best': best,
-                    'best_h': best_h,
-                    'sample_stride': sample_stride,
-                }
-            ))
+        steps.append(Step(
+            step_num=step_num,
+            current=current,
+            frontier=[p for p in choices if p != next_pos],
+            visited=set(visited),
+            path_so_far=list(path),
+            description=desc,
+            extra={
+                'h': manhattan(current, goal),
+                'h_next': h_next,
+                'delta': delta,
+                'temperature': temperature,
+                'probability': probability,
+                'accepted': accepted,
+            }
+        ))
 
         temperature *= alpha
 

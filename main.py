@@ -16,6 +16,7 @@ AI Maze Solver — Mê Cung AI 30×30
   [T]         : Đổi tốc độ (nhanh/bình thường/chậm)
   [H]         : Đổi theme
   [M]         : Bật/tắt Race Mode khi có thuật toán so sánh
+  [P]         : Bat/tat preview duong sap di
   [↑↓]        : Di chuyển player lên/xuống
   [A/D]       : Di chuyển player trái/phải
   [ESC]       : Về menu
@@ -73,9 +74,15 @@ def run_game(screen: pygame.Surface) -> str:
                         if algo:
                             game.run_comparison(algo, renderer.get_compare_algo())
                 elif key == pygame.K_RIGHT:
-                    game.step_forward()
+                    if game.result:
+                        game.step_forward()
+                    else:
+                        game.try_move_player(0, 1)
                 elif key == pygame.K_LEFT:
-                    game.step_backward()
+                    if game.result:
+                        game.step_backward()
+                    else:
+                        game.try_move_player(0, -1)
                 elif key == pygame.K_RETURN:
                     game.replay_algo()
                 elif key == pygame.K_r:
@@ -88,6 +95,8 @@ def run_game(screen: pygame.Surface) -> str:
                     game.toggle_theme()
                 elif key == pygame.K_m:
                     game.toggle_race_mode()
+                elif key == pygame.K_p:
+                    game.toggle_preview()
                 # Di chuyển player
                 elif key == pygame.K_UP    or key == pygame.K_w:
                     game.try_move_player(-1, 0)

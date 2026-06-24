@@ -117,6 +117,7 @@ class Maze:
              result: PathResult = None,
              current_step: int = 0,
              player_pos: Tuple[int, int] = None,
+             player_trail: Set[Tuple[int, int]] = None,
              known_cells: Set[Tuple[int, int]] = None):
         ts = C.TILE_SIZE
         self._ensure_tile_cache()
@@ -135,10 +136,19 @@ class Maze:
 
         # viền lưới mờ
         self._draw_soft_grid(surface, ts)
+        self._draw_player_trail(surface, player_trail, known_cells)
 
         # 2. Algorithm visualization overlay
         if result and result.steps and current_step > 0:
             step_idx = min(current_step - 1, len(result.steps) - 1)
+            if not C.SHOW_ALGO_TRACE:
+                self._draw_algorithm_trail(
+                    surface,
+                    result.steps[step_idx],
+                    result,
+                    current_step,
+                    known_cells,
+                )
             if C.SHOW_ALGO_TRACE:
                 self._draw_viz(surface, result.steps[step_idx], result, current_step, ts)
             elif C.SHOW_ROUTE_LINE:
@@ -167,6 +177,13 @@ class Maze:
 
         if actor_pos:
             self._draw_player(surface, actor_pos, ts)
+            self._draw_next_direction_arrow_for_step(
+                surface,
+                actor_pos,
+                result,
+                current_step,
+                known_cells,
+            )
 
         if actor_pos == self.goal:
             gr, gc = self.goal
@@ -225,6 +242,291 @@ class Maze:
         rect = pygame.Rect(inset, inset, max(1, ts - inset * 2), max(1, ts - inset * 2))
         pygame.draw.rect(s, (*color, alpha), rect, border_radius=radius)
         surface.blit(s, (x, y))
+
+    def _draw_player_trail(self, surface, player_trail, known_cells=None):
+        if not player_trail:
+            return
+
+        ts = C.TILE_SIZE
+        alpha = 170 if ts >= 18 else 200
+        for r, c in player_trail:
+            if (r, c) in (self.start, self.goal):
+                continue
+            if not self.is_walkable(r, c):
+                continue
+            if known_cells is not None and (r, c) not in known_cells:
+                continue
+
+            self._draw_cell_overlay(
+                surface,
+                r,
+                c,
+                C.PLAYER_TRAIL_COLOR,
+                alpha,
+                inset=max(1, ts // 12),
+                radius=4,
+                glow=True,
+            )
+
+            x, y = c * ts, r * ts
+            mark = pygame.Rect(
+                x + max(3, ts // 4),
+                y + max(3, ts // 4),
+                max(3, ts // 2),
+                max(3, ts // 2),
+            )
+            pygame.draw.rect(surface, C.PLAYER_TRAIL_EDGE, mark, 1, border_radius=3)
+
+    def _draw_algorithm_trail(self, surface, step: Step,
+                              result: PathResult, current_step: int,
+                              known_cells=None):
+        if not step:
+            return
+
+        for pos in step.visited:
+            if pos in (self.start, self.goal):
+                continue
+            if known_cells is not None and pos not in known_cells:
+                continue
+            r, c = pos
+            self._draw_cell_overlay(
+                surface,
+                r,
+                c,
+                C.VIZ_VISITED,
+                105,
+                inset=max(2, C.TILE_SIZE // 8),
+                radius=4,
+                glow=False,
+            )
+
+        route = (
+            result.path
+            if current_step >= len(result.steps) and result.path
+            else step.path_so_far
+        )
+        for pos in route:
+            if pos in (self.start, self.goal):
+                continue
+            if known_cells is not None and pos not in known_cells:
+                continue
+            r, c = pos
+            self._draw_cell_overlay(
+                surface,
+                r,
+                c,
+                C.PLAYER_TRAIL_COLOR,
+                165,
+                inset=max(1, C.TILE_SIZE // 10),
+                radius=4,
+                glow=True,
+            )
+
+        if getattr(C, 'SHOW_UPCOMING_PREVIEW', True):
+            upcoming = self._next_preview_cells(step, result, current_step, known_cells)
+            self._draw_upcoming_cells(surface, upcoming, origin=step.current)
+
+    def _next_preview_cells(self, step: Step, result: PathResult,
+                            current_step: int, known_cells=None):
+        count = max(1, getattr(C, 'UPCOMING_PREVIEW_STEPS', 5))
+        current = step.current
+
+        if result.path and current in result.path:
+            start_idx = result.path.index(current) + 1
+            cells = result.path[start_idx:start_idx + count]
+            if known_cells is None:
+                return cells
+            return [pos for pos in cells if pos in known_cells]
+
+        cells = []
+        seen = {current}
+        for future_step in result.steps[current_step:current_step + count * 3]:
+            pos = future_step.current
+            if not pos or pos in seen:
+                continue
+            if not self.is_walkable(pos[0], pos[1]):
+                continue
+            if known_cells is not None and pos not in known_cells:
+                continue
+            cells.append(pos)
+            seen.add(pos)
+            if len(cells) >= count:
+                break
+
+        if cells:
+            return cells
+
+        for pos in step.frontier:
+            if not pos or pos in seen:
+                continue
+            if known_cells is not None and pos not in known_cells:
+                continue
+            cells.append(pos)
+            seen.add(pos)
+            if len(cells) >= count:
+                break
+        return cells
+
+    def _draw_upcoming_cells(self, surface, cells, origin=None):
+        if not cells:
+            return
+
+        ts = C.TILE_SIZE
+        font = self._get_marker_font()
+        colors = getattr(C, 'VIZ_UPCOMING_COLORS', [C.VIZ_CURRENT])
+        prev = origin
+        for idx, pos in enumerate(cells):
+            if pos in (self.start,):
+                continue
+            color = colors[idx % len(colors)]
+            if prev and self._are_adjacent(prev, pos):
+                x1, y1 = self._cell_center(prev)
+                x2, y2 = self._cell_center(pos)
+                pygame.draw.line(surface, (8, 10, 18), (x1, y1), (x2, y2),
+                                 max(5, ts // 3))
+                pygame.draw.line(surface, color, (x1, y1), (x2, y2),
+                                 max(3, ts // 4))
+                pygame.draw.line(surface, C.WHITE, (x1, y1), (x2, y2),
+                                 max(1, ts // 11))
+            prev = pos
+
+        for idx, pos in enumerate(cells):
+            if pos in (self.start,):
+                continue
+            r, c = pos
+            color = colors[idx % len(colors)]
+            self._draw_cell_overlay(
+                surface,
+                r,
+                c,
+                color,
+                145,
+                inset=max(2, ts // 8),
+                radius=5,
+                glow=True,
+            )
+
+            x, y = c * ts, r * ts
+            badge = pygame.Rect(
+                x + ts // 2 - max(5, ts // 6),
+                y + ts // 2 - max(5, ts // 6),
+                max(10, ts // 3),
+                max(10, ts // 3),
+            )
+            pygame.draw.rect(surface, (8, 10, 18), badge.inflate(4, 4), border_radius=4)
+            pygame.draw.rect(surface, color, badge, border_radius=3)
+            label = font.render(str(idx + 1), True, C.BLACK)
+            surface.blit(
+                label,
+                (
+                    badge.centerx - label.get_width() // 2,
+                    badge.centery - label.get_height() // 2,
+                ),
+            )
+
+    def _draw_next_direction_arrow_for_step(self, surface, actor_pos,
+                                            result: PathResult,
+                                            current_step: int,
+                                            known_cells=None):
+        if not getattr(C, 'SHOW_UPCOMING_PREVIEW', True):
+            return
+        if not result or not result.steps or current_step <= 0:
+            return
+
+        step_idx = min(current_step - 1, len(result.steps) - 1)
+        step = result.steps[step_idx]
+        upcoming = self._next_preview_cells(step, result, current_step, known_cells)
+        next_pos = self._first_adjacent_next(actor_pos, upcoming)
+        if next_pos:
+            self._draw_next_direction_arrow(surface, actor_pos, next_pos)
+
+    def _first_adjacent_next(self, current, cells):
+        if not current or not cells:
+            return None
+        for pos in cells:
+            if pos and self._are_adjacent(current, pos):
+                return pos
+        return None
+
+    def _draw_next_direction_arrow(self, surface, current, next_pos):
+        dr = next_pos[0] - current[0]
+        dc = next_pos[1] - current[1]
+        if abs(dr) + abs(dc) != 1:
+            return
+
+        ts = C.TILE_SIZE
+        cx, cy = self._cell_center(current)
+        dx, dy = dc, dr
+        px, py = -dy, dx
+        color = C.VIZ_UPCOMING_COLORS[0]
+
+        tail_len = ts * 0.20
+        tip_len = ts * 0.34
+        base_len = ts * 0.08
+        half_w = max(4, int(ts * 0.18))
+
+        tail = (int(cx - dx * tail_len), int(cy - dy * tail_len))
+        base = (int(cx + dx * base_len), int(cy + dy * base_len))
+        tip = (int(cx + dx * tip_len), int(cy + dy * tip_len))
+
+        outline_half = half_w + 3
+        outline_tip = (int(cx + dx * (tip_len + 3)), int(cy + dy * (tip_len + 3)))
+        outline_base = (int(cx + dx * (base_len - 1)), int(cy + dy * (base_len - 1)))
+        outline = [
+            outline_tip,
+            (
+                int(outline_base[0] + px * outline_half),
+                int(outline_base[1] + py * outline_half),
+            ),
+            (
+                int(outline_base[0] - px * outline_half),
+                int(outline_base[1] - py * outline_half),
+            ),
+        ]
+        arrow = [
+            tip,
+            (int(base[0] + px * half_w), int(base[1] + py * half_w)),
+            (int(base[0] - px * half_w), int(base[1] - py * half_w)),
+        ]
+
+        backing = pygame.Surface((ts, ts), pygame.SRCALPHA)
+        pygame.draw.circle(
+            backing,
+            (8, 10, 18, 145),
+            (ts // 2, ts // 2),
+            max(7, ts // 3),
+        )
+        surface.blit(backing, (cx - ts // 2, cy - ts // 2))
+
+        pygame.draw.line(surface, (8, 10, 18), tail, base, max(5, ts // 4))
+        pygame.draw.line(surface, color, tail, base, max(3, ts // 6))
+        pygame.draw.polygon(surface, (8, 10, 18), outline)
+        pygame.draw.polygon(surface, color, arrow)
+        pygame.draw.line(surface, C.WHITE, tail, base, max(1, ts // 13))
+        pygame.draw.polygon(surface, C.WHITE, [
+            (
+                int(tip[0] - dx * max(3, ts // 9)),
+                int(tip[1] - dy * max(3, ts // 9)),
+            ),
+            (
+                int(base[0] + px * max(1, half_w // 3)),
+                int(base[1] + py * max(1, half_w // 3)),
+            ),
+            (
+                int(base[0] - px * max(1, half_w // 3)),
+                int(base[1] - py * max(1, half_w // 3)),
+            ),
+        ])
+
+    def _are_adjacent(self, a, b):
+        return abs(a[0] - b[0]) + abs(a[1] - b[1]) == 1
+
+    def _cell_center(self, pos):
+        r, c = pos
+        return (
+            c * C.TILE_SIZE + C.TILE_SIZE // 2,
+            r * C.TILE_SIZE + C.TILE_SIZE // 2,
+        )
 
     def _draw_route_line(self, surface: pygame.Surface, step: Step,
                          result: PathResult, current_step: int):
@@ -349,7 +651,8 @@ class Maze:
                 pts.append((c * ts + ts // 2, r * ts + ts // 2))
             if len(pts) >= 2:
                 self._draw_pixel_route(surface, pts, C.VIZ_PATH, moving=False, final=True)
-    def draw_race_agent(self, surface, result, step_idx, color, label):
+    def draw_race_agent(self, surface, result, step_idx, color, label,
+                        route_style="solid"):
         if not result or not result.steps or step_idx <= 0:
             return
 
@@ -377,7 +680,10 @@ class Maze:
             pts.append((c * ts + ts // 2, r * ts + ts // 2))
 
         if len(pts) >= 2:
-            self._draw_pixel_route(surface, pts, color, moving=True)
+            if route_style == "dashed":
+                self._draw_dashed_route(surface, pts, color, moving=True)
+            else:
+                self._draw_pixel_route(surface, pts, color, moving=True)
 
         # current node / agent
         if step.current:
@@ -405,6 +711,86 @@ class Maze:
                     ),
                 )
     
+    def _draw_dashed_route(self, surface, pts, color, moving=True):
+        ts = C.TILE_SIZE
+        if len(pts) < 2:
+            return
+
+        width_outer = max(5, ts // 4)
+        width_mid = max(3, ts // 7)
+        width_inner = max(1, ts // 12)
+        dash_len = max(8, int(ts * 0.62))
+        gap_len = max(5, int(ts * 0.38))
+        segments = self._dashed_segments(pts, dash_len, gap_len)
+        if not segments:
+            return
+
+        glow_s = pygame.Surface((C.MAP_W, C.MAP_H), pygame.SRCALPHA)
+        for start, end in segments:
+            pygame.draw.line(glow_s, (*color, 34), start, end, width_outer + 9)
+            pygame.draw.line(glow_s, (*color, 70), start, end, width_outer + 3)
+        surface.blit(glow_s, (0, 0))
+
+        for start, end in segments:
+            pygame.draw.line(surface, (8, 10, 18), start, end, width_outer)
+            pygame.draw.line(surface, color, start, end, width_mid)
+            pygame.draw.line(surface, C.WHITE, start, end, width_inner)
+
+        for i, (x, y) in enumerate(pts):
+            if i % 2 != 0:
+                continue
+            size = max(4, ts // 5)
+            rect = pygame.Rect(x - size // 2, y - size // 2, size, size)
+            pygame.draw.rect(surface, (8, 10, 18), rect.inflate(4, 4), border_radius=3)
+            pygame.draw.rect(surface, color, rect, border_radius=2)
+
+        if moving and segments:
+            idx = int(self._tick * 12) % len(segments)
+            start, end = segments[idx]
+            sx = (start[0] + end[0]) // 2
+            sy = (start[1] + end[1]) // 2
+            spark = max(5, ts // 3)
+            pygame.draw.circle(surface, (*color, 130), (sx, sy), spark)
+            pygame.draw.circle(surface, C.WHITE, (sx, sy), max(2, spark // 2))
+
+    def _dashed_segments(self, pts, dash_len, gap_len):
+        segments = []
+        pattern = dash_len + gap_len
+        if pattern <= 0:
+            return segments
+
+        phase = (self._tick * 18) % pattern
+        carry = -phase
+        for i in range(1, len(pts)):
+            x1, y1 = pts[i - 1]
+            x2, y2 = pts[i]
+            dx = x2 - x1
+            dy = y2 - y1
+            length = math.hypot(dx, dy)
+            if length <= 0:
+                continue
+
+            ux = dx / length
+            uy = dy / length
+            pos = carry
+            while pos < length:
+                dash_start = max(0, pos)
+                dash_end = min(length, pos + dash_len)
+                if dash_end > 0 and dash_start < length and dash_end > dash_start:
+                    start = (
+                        int(x1 + ux * dash_start),
+                        int(y1 + uy * dash_start),
+                    )
+                    end = (
+                        int(x1 + ux * dash_end),
+                        int(y1 + uy * dash_end),
+                    )
+                    segments.append((start, end))
+                pos += pattern
+
+            carry = pos - length - pattern
+        return segments
+
     def _draw_pixel_route(self, surface, pts, color, moving=True, final=False):
         """Vẽ route nổi bật dạng neon pixel cable + hạt sáng chạy trên đường."""
         ts = C.TILE_SIZE
