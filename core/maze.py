@@ -65,8 +65,8 @@ class Maze:
             pygame.draw.rect(wall, shade(C.WALL_COLOR, 34), (max(2, ts // 6), max(2, ts // 6), max(2, ts // 5), 1))
             pygame.draw.rect(wall, shade(C.WALL_COLOR, 24), (ts - max(5, ts // 3), ts // 2, max(2, ts // 6), 1))
             # cracks / bevel pixels make each brick more hand-made and less flat
-            pygame.draw.line(wall, (8, 13, 28), (ts//4, ts//3+2), (ts//4+max(2,ts//8), ts//3+2), 1)
-            pygame.draw.line(wall, (118, 170, 240), (ts//2+1, 3), (ts//2+max(2,ts//6), 3), 1)
+            pygame.draw.line(wall, shade(C.WALL_SHADOW, 6), (ts//4, ts//3+2), (ts//4+max(2,ts//8), ts//3+2), 1)
+            pygame.draw.line(wall, shade(C.WALL_LIGHT, 12), (ts//2+1, 3), (ts//2+max(2,ts//6), 3), 1)
 
         # FLOOR: lát gạch tối có viền neon nhẹ
         floor = pygame.Surface((ts, ts), pygame.SRCALPHA)
@@ -75,15 +75,15 @@ class Maze:
         if ts >= 10:
             pygame.draw.line(floor, C.FLOOR_LIGHT, (1, 1), (ts - 2, 1), 1)
             pygame.draw.line(floor, C.FLOOR_LIGHT, (1, 1), (1, ts - 2), 1)
-            pygame.draw.line(floor, (7, 12, 22), (1, ts - 2), (ts - 2, ts - 2), 1)
-            pygame.draw.line(floor, (7, 12, 22), (ts - 2, 1), (ts - 2, ts - 2), 1)
+            pygame.draw.line(floor, shade(C.FLOOR_COLOR, -10), (1, ts - 2), (ts - 2, ts - 2), 1)
+            pygame.draw.line(floor, shade(C.FLOOR_COLOR, -10), (ts - 2, 1), (ts - 2, ts - 2), 1)
         if ts >= 16:
             # pattern viên gạch sàn 2x2 + highlight từng góc
             half = ts // 2
-            pygame.draw.line(floor, (12, 26, 47), (half, 2), (half, ts - 3), 1)
-            pygame.draw.line(floor, (12, 26, 47), (2, half), (ts - 3, half), 1)
+            pygame.draw.line(floor, shade(C.FLOOR_EDGE, -8), (half, 2), (half, ts - 3), 1)
+            pygame.draw.line(floor, shade(C.FLOOR_EDGE, -8), (2, half), (ts - 3, half), 1)
             pygame.draw.rect(floor, C.FLOOR_HILITE, (3, 3, half - 5, half - 5), 1)
-            pygame.draw.rect(floor, (8, 17, 31), (half + 2, half + 2, half - 5, half - 5), 1)
+            pygame.draw.rect(floor, shade(C.FLOOR_COLOR, -6), (half + 2, half + 2, half - 5, half - 5), 1)
         if ts >= 18:
             for dr in (ts // 4, 3 * ts // 4):
                 for dc in (ts // 4, 3 * ts // 4):
@@ -139,10 +139,10 @@ class Maze:
         # 2. Algorithm visualization overlay
         if result and result.steps and current_step > 0:
             step_idx = min(current_step - 1, len(result.steps) - 1)
-            self._draw_viz(surface, result.steps[step_idx], result, current_step, ts)
-
-        # 3. Start & Goal markers
-        self._draw_start_goal(surface, ts)
+            if C.SHOW_ALGO_TRACE:
+                self._draw_viz(surface, result.steps[step_idx], result, current_step, ts)
+            elif C.SHOW_ROUTE_LINE:
+                self._draw_route_line(surface, result.steps[step_idx], result, current_step)
 
         monster_pos = None
         monster_alert = False
@@ -157,6 +157,9 @@ class Maze:
             if result.steps[step_idx].current:
                 actor_pos = result.steps[step_idx].current
 
+        # 3. Start & treasure markers
+        self._draw_start_goal(surface, ts, treasure_open=(actor_pos == self.goal))
+
         if monster_pos:
             monster_alert = actor_pos == monster_pos
             if not monster_alert:
@@ -164,6 +167,10 @@ class Maze:
 
         if actor_pos:
             self._draw_player(surface, actor_pos, ts)
+
+        if actor_pos == self.goal:
+            gr, gc = self.goal
+            self._draw_pixel_trophy(surface, gc * ts, gr * ts, ts, opened=True)
 
         if monster_pos and monster_alert:
             self._draw_monster(surface, monster_pos, ts, True)
@@ -218,6 +225,16 @@ class Maze:
         rect = pygame.Rect(inset, inset, max(1, ts - inset * 2), max(1, ts - inset * 2))
         pygame.draw.rect(s, (*color, alpha), rect, border_radius=radius)
         surface.blit(s, (x, y))
+
+    def _draw_route_line(self, surface: pygame.Surface, step: Step,
+                         result: PathResult, current_step: int):
+        route = result.path if current_step >= len(result.steps) and result.path else step.path_so_far
+        pts = [
+            (c * C.TILE_SIZE + C.TILE_SIZE // 2, r * C.TILE_SIZE + C.TILE_SIZE // 2)
+            for r, c in route
+        ]
+        if len(pts) >= 2:
+            self._draw_pixel_route(surface, pts, C.VIZ_PATH, moving=current_step < len(result.steps))
 
     def _draw_viz(self, surface: pygame.Surface, step: Step,
                   result: PathResult, current_step: int, ts: int):
@@ -322,13 +339,6 @@ class Maze:
                     max(2, ts // 10)
                 )
 
-            if ts >= 18:
-                font = self._get_marker_font()
-                txt = font.render("AI", True, C.BLACK)
-                tag = pygame.Rect(cx - 14, cy + ts // 4, 28, 14)
-                pygame.draw.rect(surface, C.VIZ_CURRENT, tag, border_radius=4)
-                surface.blit(txt, (tag.centerx - txt.get_width() // 2, tag.centery - txt.get_height() // 2))
-
         if is_done and result.path:
             pts = []
             for pos in result.path:
@@ -348,7 +358,7 @@ class Maze:
         step = result.steps[idx]
 
         # visited riêng của agent
-        for pos in step.visited:
+        for pos in step.visited if C.SHOW_ALGO_TRACE else []:
             if pos in (self.start, self.goal):
                 continue
 
@@ -362,11 +372,12 @@ class Maze:
                 continue
 
             r, c = pos
-            self._draw_cell_overlay(surface, r, c, color, 95, inset=5, glow=True)
+            if C.SHOW_ALGO_TRACE:
+                self._draw_cell_overlay(surface, r, c, color, 95, inset=5, glow=True)
             pts.append((c * ts + ts // 2, r * ts + ts // 2))
 
         if len(pts) >= 2:
-            pygame.draw.lines(surface, color, False, pts, max(2, ts // 8))
+            self._draw_pixel_route(surface, pts, color, moving=True)
 
         # current node / agent
         if step.current:
@@ -460,14 +471,14 @@ class Maze:
 
     # ── Start / Goal ─────────────────────────────────────────
 
-    def _draw_start_goal(self, surface: pygame.Surface, ts: int):
+    def _draw_start_goal(self, surface: pygame.Surface, ts: int, treasure_open: bool = False):
         """Start = animated portal, Goal = glowing trophy/star marker."""
         glow_a = int(120 + math.sin(self._tick * 3.2) * 50)
         font = self._get_marker_font()
 
         sr, sc = self.start
         sx, sy = sc * ts + ts // 2, sr * ts + ts // 2
-        self._draw_portal(surface, sx, sy, ts, C.START_COLOR, C.START_GLOW, label='S')
+        self._draw_portal(surface, sx, sy, ts, C.START_COLOR, C.START_GLOW, label=None)
 
         gr, gc = self.goal
         gx, gy = gc * ts + ts // 2, gr * ts + ts // 2
@@ -475,13 +486,7 @@ class Maze:
         pygame.draw.circle(goal_s, (*C.GOAL_GLOW, min(230, glow_a)), (ts, ts), max(8, ts // 2 + 7))
         pygame.draw.circle(goal_s, (*C.GOAL_COLOR, 60), (ts, ts), max(5, ts // 2 - 1), 2)
         surface.blit(goal_s, (gx - ts, gy - ts))
-        self._draw_pixel_trophy(surface, gc * ts, gr * ts, ts)
-        if ts >= 22:
-            lbl_g = font.render('GOAL', True, C.BLACK)
-            tag = pygame.Rect(gx - lbl_g.get_width() // 2 - 4, gy + ts // 5, lbl_g.get_width() + 8, lbl_g.get_height() + 3)
-            pygame.draw.rect(surface, C.GOAL_GLOW, tag, border_radius=4)
-            pygame.draw.rect(surface, C.BLACK, tag, 1, border_radius=4)
-            surface.blit(lbl_g, (tag.x + 4, tag.y + 1))
+        self._draw_pixel_trophy(surface, gc * ts, gr * ts, ts, opened=treasure_open)
 
     def _draw_portal(self, surface, cx: int, cy: int, ts: int, color, glow, label='S'):
         pulse = abs(math.sin(self._tick * 4.5))
@@ -501,31 +506,121 @@ class Maze:
         pygame.draw.rect(surface, (6, 30, 24), base.inflate(5, 5), border_radius=7)
         pygame.draw.rect(surface, color, base, border_radius=6)
         pygame.draw.rect(surface, C.WHITE, base.inflate(-max(4, ts//3), -max(4, ts//3)), border_radius=3)
-        font = self._get_marker_font()
-        lbl = font.render(label, True, C.BLACK)
-        surface.blit(lbl, (cx - lbl.get_width()//2, cy - lbl.get_height()//2))
+        if label:
+            font = self._get_marker_font()
+            lbl = font.render(label, True, C.BLACK)
+            surface.blit(lbl, (cx - lbl.get_width()//2, cy - lbl.get_height()//2))
+        else:
+            self._draw_entrance_icon(surface, cx, cy, ts)
 
-    def _draw_pixel_trophy(self, surface, x: int, y: int, ts: int):
-        unit = max(1, ts // 8)
-        cx = x + ts // 2
-        top = y + unit
-        # dark backing
-        pygame.draw.rect(surface, (30, 20, 6), (cx - 3*unit, top + unit, 6*unit, 4*unit), border_radius=3)
-        # cup body
-        pygame.draw.rect(surface, C.GOAL_COLOR, (cx - 2*unit, top + unit, 4*unit, 3*unit))
-        pygame.draw.rect(surface, (255, 245, 160), (cx - unit, top + unit, unit, unit))
-        # handles
-        pygame.draw.rect(surface, C.GOAL_COLOR, (cx - 3*unit, top + 2*unit, unit, 2*unit))
-        pygame.draw.rect(surface, C.GOAL_COLOR, (cx + 2*unit, top + 2*unit, unit, 2*unit))
-        pygame.draw.rect(surface, (80, 50, 10), (cx - 3*unit, top + 3*unit, unit, unit))
-        pygame.draw.rect(surface, (80, 50, 10), (cx + 2*unit, top + 3*unit, unit, unit))
-        # stem/base
-        pygame.draw.rect(surface, C.GOAL_GLOW, (cx - unit, top + 4*unit, 2*unit, unit))
-        pygame.draw.rect(surface, C.GOAL_COLOR, (cx - 2*unit, top + 5*unit, 4*unit, unit))
-        # star sparkle above
-        sp_y = y + max(2, unit // 2)
-        pygame.draw.polygon(surface, C.WHITE, [(cx, sp_y), (cx+unit//2+1, sp_y+unit), (cx+unit+1, sp_y+unit), (cx+unit//2+1, sp_y+unit+1), (cx, sp_y+2*unit), (cx-unit//2-1, sp_y+unit+1), (cx-unit-1, sp_y+unit), (cx-unit//2-1, sp_y+unit)])
-        pygame.draw.rect(surface, (35, 25, 8), (cx - 2*unit, top + unit, 4*unit, 5*unit), 1)
+    def _draw_entrance_icon(self, surface, cx: int, cy: int, ts: int):
+        radius = max(6, ts // 3)
+        outline = (8, 18, 18)
+        brass = (232, 190, 88)
+        face = (230, 244, 216)
+        needle = (220, 48, 42)
+
+        pygame.draw.circle(surface, outline, (cx, cy), radius + 3)
+        pygame.draw.circle(surface, brass, (cx, cy), radius + 1)
+        pygame.draw.circle(surface, face, (cx, cy), radius - 2)
+        pygame.draw.circle(surface, outline, (cx, cy), max(2, radius // 5))
+
+        tip = max(5, radius - 2)
+        pygame.draw.polygon(surface, needle,
+                            [(cx, cy - tip), (cx - max(2, ts // 12), cy + 1),
+                             (cx, cy + max(2, ts // 12)), (cx + max(2, ts // 12), cy + 1)])
+        pygame.draw.polygon(surface, (40, 90, 95),
+                            [(cx, cy + tip), (cx - max(2, ts // 12), cy - 1),
+                             (cx, cy - max(2, ts // 12)), (cx + max(2, ts // 12), cy - 1)])
+
+        tick = max(1, ts // 14)
+        pygame.draw.line(surface, outline, (cx, cy - radius + 2), (cx, cy - radius + 2 + tick), 1)
+        pygame.draw.line(surface, outline, (cx + radius - 2, cy), (cx + radius - 2 - tick, cy), 1)
+        pygame.draw.line(surface, outline, (cx, cy + radius - 2), (cx, cy + radius - 2 - tick), 1)
+        pygame.draw.line(surface, outline, (cx - radius + 2, cy), (cx - radius + 2 + tick, cy), 1)
+
+    def _draw_pixel_trophy(self, surface, x: int, y: int, ts: int, opened: bool = False):
+        unit = max(2, ts // 8 if opened else ts // 10)
+        pad = 0 if opened else max(2, ts // 10)
+        left = x - ts // 5 if opened else x + pad
+        top = y + ts // 10 if opened else y + ts // 5
+        w = ts + (2 * ts // 5) if opened else ts - pad * 2
+        h = ts - (top - y) - pad
+        lid_h = max(7, h // 2)
+        body_h = h - lid_h + unit
+
+        wood_dark = (74, 38, 16)
+        wood_mid = (138, 78, 28)
+        wood_light = (196, 124, 46)
+        metal = (246, 190, 54)
+        metal_light = (255, 238, 154)
+        outline = (28, 18, 8)
+
+        pygame.draw.ellipse(surface, (0, 0, 0, 115),
+                            (left, y + ts - pad * 2, w, max(3, pad)))
+
+        lid_y = top - (3 * unit if opened else 0)
+        lid = pygame.Rect(left, lid_y, w, lid_h + unit)
+        pygame.draw.rect(surface, outline, lid, border_radius=5)
+        pygame.draw.rect(surface, wood_mid,
+                         lid.inflate(-max(2, unit), -max(2, unit // 2)),
+                         border_radius=4)
+        pygame.draw.rect(surface, wood_light,
+                         (left + 2 * unit, lid_y + unit, w - 4 * unit, max(2, unit)))
+        pygame.draw.line(surface, outline, (left + unit, lid_y + lid_h),
+                         (left + w - unit, lid_y + lid_h), 2)
+
+        body = pygame.Rect(left, top + lid_h, w, body_h)
+        pygame.draw.rect(surface, outline, body, border_radius=4)
+        pygame.draw.rect(surface, wood_dark, body.inflate(-unit, -unit // 2), border_radius=3)
+        if opened:
+            pygame.draw.rect(surface, (18, 10, 4),
+                             (left + unit, top + lid_h, w - 2 * unit, max(3, unit)),
+                             border_radius=2)
+        pygame.draw.rect(surface, wood_mid,
+                         (left + unit, top + lid_h + body_h // 2, w - 2 * unit, body_h // 2 - 1))
+
+        band_w = max(2, unit)
+        pygame.draw.rect(surface, metal, (left + band_w, top + unit, band_w, h - unit))
+        pygame.draw.rect(surface, metal, (left + w - 2 * band_w, top + unit, band_w, h - unit))
+        pygame.draw.rect(surface, metal, (left, top + lid_h, w, band_w))
+        pygame.draw.rect(surface, metal_light, (left + unit, top + lid_h, w - 2 * unit, 1))
+
+        lock_w = max(6, 2 * unit)
+        lock_h = max(6, 2 * unit)
+        lock = pygame.Rect(x + ts // 2 - lock_w // 2, top + lid_h - unit // 2,
+                           lock_w, lock_h)
+        pygame.draw.rect(surface, metal_light, lock, border_radius=2)
+        pygame.draw.rect(surface, outline, lock, 1, border_radius=2)
+        pygame.draw.circle(surface, outline, (lock.centerx, lock.centery), max(1, unit // 3))
+        pygame.draw.rect(surface, outline,
+                         (lock.centerx - 1, lock.centery, 2, max(2, unit)),
+                         border_radius=1)
+
+        coin_y = top + lid_h - max(2, unit // 2)
+        for i, col in enumerate((metal_light, C.GOAL_COLOR, (255, 210, 85))):
+            pygame.draw.circle(surface, col,
+                               (left + w // 3 + i * max(3, unit), coin_y),
+                               max(2, unit // 2))
+
+        if opened:
+            pulse = abs(math.sin(self._tick * 7))
+            shine = pygame.Surface((ts * 2, ts * 2), pygame.SRCALPHA)
+            pygame.draw.circle(shine, (*C.GOAL_GLOW, 85 + int(80 * pulse)),
+                               (ts, ts), max(8, ts // 2 + int(5 * pulse)))
+            surface.blit(shine, (x - ts // 2, y - ts // 2))
+
+            for i in range(5):
+                ang = self._tick * 3 + i * math.tau / 5
+                sx = x + ts // 2 + int(math.cos(ang) * (ts * 0.34))
+                sy = y + ts // 2 + int(math.sin(ang) * (ts * 0.28))
+                pygame.draw.circle(surface, metal_light, (sx, sy), max(2, unit // 2))
+
+            beam_w = max(2, unit)
+            pygame.draw.polygon(surface, (*metal_light, 180),
+                                [(x + ts // 2, top + lid_h - unit),
+                                 (x + ts // 2 - beam_w, top),
+                                 (x + ts // 2 + beam_w, top)])
 
     # ── Player sprite ────────────────────────────────────────
 
@@ -631,12 +726,15 @@ class Maze:
         oy = y + (ts - sprite_h) // 2 + int(math.sin(self._tick * 8) * max(1, unit // 2))
         frame = int(self._tick * 8) % 2
 
-        skin = (255, 214, 172)
-        hair = (42, 28, 18)
-        shirt = (55, 175, 255)
-        shirt_dark = (20, 95, 175)
-        pants = (52, 62, 84)
-        shoe = (18, 22, 32)
+        skin = (232, 178, 125)
+        hat = (155, 104, 44)
+        hat_dark = (86, 58, 30)
+        jacket = (116, 82, 42)
+        jacket_dark = (72, 50, 30)
+        scarf = (220, 56, 48)
+        pants = (54, 72, 78)
+        shoe = (28, 22, 16)
+        lamp = (255, 232, 120)
         outline = (5, 10, 18)
 
         def px(col, row, w, h, color):
@@ -649,42 +747,55 @@ class Maze:
         px(1, 7, 2, 2, outline)
         px(5, 7, 2, 2, outline)
 
-        # head + hair
+        # hat + head
+        px(1, 0, 6, 1, hat_dark)
+        px(2, 0, 4, 1, hat)
+        px(0, 1, 8, 1, hat)
         px(2, 1, 4, 3, skin)
-        px(2, 0, 4, 1, hair)
-        px(1, 1, 1, 2, hair)
-        px(5, 1, 1, 1, hair)
+        px(1, 2, 1, 1, hat_dark)
+        px(5, 2, 1, 1, hat_dark)
         # eyes
         px(3, 2, 1, 1, outline)
         px(5, 2, 1, 1, outline)
 
         # body
-        px(2, 4, 4, 3, shirt)
-        px(3, 4, 2, 1, (120, 225, 255))
-        px(2, 6, 4, 1, shirt_dark)
+        px(2, 4, 4, 3, jacket)
+        px(3, 4, 2, 1, scarf)
+        px(2, 6, 4, 1, jacket_dark)
 
         # arms swing
         if frame == 0:
             px(1, 4, 1, 3, skin)
-            px(6, 4, 1, 2, skin)
+            px(6, 4, 1, 2, jacket)
+            px(7, 4, 1, 1, lamp)
             px(2, 7, 1, 2, pants)
             px(5, 7, 1, 2, pants)
             px(1, 9, 2, 1, shoe)
             px(5, 9, 2, 1, shoe)
         else:
             px(1, 4, 1, 2, skin)
-            px(6, 4, 1, 3, skin)
+            px(6, 4, 1, 3, jacket)
+            px(7, 5, 1, 1, lamp)
             px(2, 7, 1, 2, pants)
             px(5, 7, 1, 2, pants)
             px(2, 9, 2, 1, shoe)
             px(4, 9, 2, 1, shoe)
+
+        # flashlight beam
+        beam = pygame.Surface((ts, ts), pygame.SRCALPHA)
+        beam_alpha = 42 + int(abs(math.sin(self._tick * 6)) * 35)
+        pygame.draw.polygon(beam, (*lamp, beam_alpha),
+                            [(ts // 2 + unit, ts // 2),
+                             (ts - 1, ts // 2 - 2 * unit),
+                             (ts - 1, ts // 2 + 2 * unit)])
+        surface.blit(beam, (x, y))
 
         # bong/hat bui pixel duoi chan tao cam giac dang chay
         dust_y = y + ts - max(3, unit)
         dust_phase = int(self._tick * 10) % 3
         for i in range(3):
             dx = (i * 3 + dust_phase) * unit // 2
-            pygame.draw.rect(surface, (115, 225, 255),
+            pygame.draw.rect(surface, (165, 138, 92),
                              (x + ts // 2 - dx, dust_y - i, max(2, unit), max(1, unit // 2)))
 
         # pixel outline sáng

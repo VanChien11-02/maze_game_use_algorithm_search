@@ -64,6 +64,7 @@ class Renderer:
         self.Y_PLAY = 176
         self.PLAY_H = 40
         self.Y_SIZE = 268
+        self.Y_DIFFICULTY = 290
 
         group_options = [
             f"{g} ({info['vi_name']})"
@@ -106,6 +107,15 @@ class Renderer:
             selected_idx=size_idx,
             max_visible=4,
         )
+        difficulty_idx = C.DIFFICULTY_NAMES.index(C.current_difficulty_name())
+        self.cb_difficulty = Combobox(
+            abs_x=hx + cb_w - 116, abs_y=self.Y_DIFFICULTY,
+            w=116, h=20,
+            options=C.DIFFICULTY_NAMES,
+            font=self.f_cb,
+            selected_idx=difficulty_idx,
+            max_visible=3,
+        )
 
         self.play_btn = pygame.Rect(hx, self.Y_PLAY, cb_w, self.PLAY_H)
         self._group_idx = 0
@@ -145,6 +155,11 @@ class Renderer:
         idx = max(0, min(self.cb_size.selected, len(C.GRID_OPTIONS) - 1))
         return C.GRID_OPTIONS[idx]
 
+    def _selected_difficulty(self) -> str:
+        idx = max(0, min(self.cb_difficulty.selected,
+                         len(C.DIFFICULTY_NAMES) - 1))
+        return C.DIFFICULTY_NAMES[idx]
+
     def handle_event(self, event: pygame.event.Event, game: Game) -> bool:
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             mx, my = event.pos
@@ -161,44 +176,63 @@ class Renderer:
             hdr_size = pygame.Rect(self.cb_size.abs_x, self.cb_size.abs_y,
                                    self.cb_size.w, self.cb_size.h)
             drop_size = self.cb_size.get_dropdown_rect()
+            hdr_diff = pygame.Rect(self.cb_difficulty.abs_x, self.cb_difficulty.abs_y,
+                                   self.cb_difficulty.w, self.cb_difficulty.h)
+            drop_diff = self.cb_difficulty.get_dropdown_rect()
 
             in_cb1 = hdr1.collidepoint(mx, my) or (drop1 and drop1.collidepoint(mx, my))
             in_cb2 = hdr2.collidepoint(mx, my) or (drop2 and drop2.collidepoint(mx, my))
             in_cb3 = hdr3.collidepoint(mx, my) or (drop3 and drop3.collidepoint(mx, my))
             in_size = (hdr_size.collidepoint(mx, my)
                        or (drop_size and drop_size.collidepoint(mx, my)))
+            in_diff = (hdr_diff.collidepoint(mx, my)
+                       or (drop_diff and drop_diff.collidepoint(mx, my)))
 
             if in_cb1:
                 self.cb_algo.close()
                 self.cb_compare.close()
                 self.cb_size.close()
+                self.cb_difficulty.close()
                 self.cb_group.handle_event(event)
                 return False
             if in_cb2:
                 self.cb_group.close()
                 self.cb_compare.close()
                 self.cb_size.close()
+                self.cb_difficulty.close()
                 self.cb_algo.handle_event(event)
                 return False
             if in_cb3:
                 self.cb_group.close()
                 self.cb_algo.close()
                 self.cb_size.close()
+                self.cb_difficulty.close()
                 self.cb_compare.handle_event(event)
                 return False
             if in_size:
                 self.cb_group.close()
                 self.cb_algo.close()
                 self.cb_compare.close()
+                self.cb_difficulty.close()
                 changed = self.cb_size.handle_event(event)
                 if changed:
                     game.resize_matrix(self._selected_matrix_size())
+                return False
+            if in_diff:
+                self.cb_group.close()
+                self.cb_algo.close()
+                self.cb_compare.close()
+                self.cb_size.close()
+                changed = self.cb_difficulty.handle_event(event)
+                if changed:
+                    game.set_difficulty(self._selected_difficulty())
                 return False
 
             self.cb_group.close()
             self.cb_algo.close()
             self.cb_compare.close()
             self.cb_size.close()
+            self.cb_difficulty.close()
             if self.play_btn.collidepoint(mx, my):
                 return True
             return False
@@ -207,6 +241,7 @@ class Renderer:
         self.cb_algo.handle_event(event)
         self.cb_compare.handle_event(event)
         self.cb_size.handle_event(event)
+        self.cb_difficulty.handle_event(event)
         return False
 
     def render(self, game: Game, dt: float):
@@ -215,6 +250,7 @@ class Renderer:
         self._draw_maze_area(game)
         self._draw_hud(game)
         self._draw_play_button(game)
+        self.cb_difficulty.draw(self.screen)
         self.cb_size.draw(self.screen)
         self.cb_compare.draw(self.screen)
         self.cb_algo.draw(self.screen)
@@ -275,7 +311,7 @@ class Renderer:
         title = self.f_title.render("AI MAZE SOLVER", True, C.HUD_TITLE)
         panel.blit(title, (pad + 44, 13))
         algo_count = sum(len(info['algorithms']) for info in C.ALGO_GROUPS.values())
-        subtitle = self.f_tiny.render(f"{C.current_theme_name()} theme | Me Cung AI {C.GRID_SIZE}x{C.GRID_SIZE} | {algo_count} thuat toan",
+        subtitle = self.f_tiny.render(f"{C.current_theme_name()} theme | Treasure Maze AI {C.GRID_SIZE}x{C.GRID_SIZE} | {algo_count} thuat toan",
                                       True, C.HUD_MUTED)
         panel.blit(subtitle, (pad + 44, 37))
         _draw_chip(panel, self.f_tiny, f"H: {C.current_theme_name()}", C.HUD_W - pad - 108, 17, C.HUD_TITLE)
@@ -306,11 +342,12 @@ class Renderer:
         rect = pygame.Rect(pad - 2, 238, C.HUD_W - pad * 2 + 4, 72)
         _draw_card(panel, rect)
         _draw_section(panel, self.f_section, "Me cung", pad, 248)
-        _draw_chip(panel, self.f_tiny, f"Portal {game.maze.start}", pad + 95, 245, C.START_COLOR)
-        _draw_chip(panel, self.f_tiny, f"Goal {game.maze.goal}", pad + 225, 245, C.GOAL_COLOR)
+        _draw_chip(panel, self.f_tiny, "Compass", pad + 95, 245, C.START_COLOR)
+        _draw_chip(panel, self.f_tiny, "Treasure", pad + 190, 245, C.GOAL_COLOR)
         _draw_label(panel, self.f_label, "Matrix", pad + 380, 249, C.HUD_TITLE)
+        _draw_label(panel, self.f_label, "Difficulty", pad + 380, 279, C.HUD_TITLE)
         tile_s = self.f_tiny.render(f"Tile {C.TILE_SIZE}px", True, C.HUD_MUTED)
-        panel.blit(tile_s, (pad + 380, 297))
+        panel.blit(tile_s, (pad + 258, 297))
         # mini legend pixels
         lx, ly = pad, 282
         for label, color in [("Wall", C.WALL_LIGHT), ("Visited", C.VIZ_VISITED), ("Path", C.VIZ_PATH), ("Player", C.PLAYER_COLOR)]:
@@ -323,7 +360,7 @@ class Renderer:
         """Tiny overview map placed inside the maze info zone."""
         # use available blank region in Maze card, right side but below chips
         size = 54
-        x = pad + 305
+        x = pad + 254
         y = 251
         rect = pygame.Rect(x, y, size, size)
         pygame.draw.rect(panel, (8, 13, 25), rect, border_radius=8)
@@ -347,15 +384,37 @@ class Renderer:
                 rx = int(ox + c * cell_w); ry = int(oy + r * cell_h)
                 rw = max(1, int(cell_w + 0.8)); rh = max(1, int(cell_h + 0.8))
                 pygame.draw.rect(panel, col, (rx, ry, rw, rh))
-        def dot(pos, color, radius=3):
+        def map_point(pos):
             rr, cc = pos
             px = int(ox + cc * cell_w + cell_w / 2)
             py = int(oy + rr * cell_h + cell_h / 2)
+            return px, py
+
+        def dot(pos, color, radius=3):
+            px, py = map_point(pos)
             pulse = int(abs(math.sin(self._tick * 5)) * 2)
             pygame.draw.circle(panel, color, (px, py), radius + pulse)
             pygame.draw.circle(panel, C.WHITE, (px, py), max(1, radius-2))
-        dot(game.maze.start, C.START_COLOR, 3)
-        dot(game.maze.goal, C.GOAL_COLOR, 3)
+
+        def compass_icon(pos):
+            px, py = map_point(pos)
+            pulse = int(abs(math.sin(self._tick * 5)) * 1)
+            pygame.draw.circle(panel, (26, 44, 40), (px, py), 6 + pulse)
+            pygame.draw.circle(panel, (232, 190, 88), (px, py), 5)
+            pygame.draw.circle(panel, (230, 244, 216), (px, py), 3)
+            pygame.draw.polygon(panel, (220, 48, 42), [(px, py - 5), (px - 2, py), (px, py + 1), (px + 2, py)])
+
+        def chest_icon(pos):
+            px, py = map_point(pos)
+            pulse = int(abs(math.sin(self._tick * 5)) * 1)
+            pygame.draw.circle(panel, (*C.GOAL_GLOW, 80), (px, py), 7 + pulse)
+            pygame.draw.rect(panel, (32, 20, 8), (px - 6, py - 4, 12, 9), border_radius=2)
+            pygame.draw.rect(panel, (138, 78, 28), (px - 5, py - 3, 10, 7), border_radius=1)
+            pygame.draw.rect(panel, C.GOAL_COLOR, (px - 6, py, 12, 2))
+            pygame.draw.rect(panel, (255, 238, 154), (px - 2, py - 1, 4, 4), border_radius=1)
+
+        compass_icon(game.maze.start)
+        chest_icon(game.maze.goal)
         dot(game.player_pos, C.PLAYER_COLOR, 2)
 
     def _draw_status_card(self, panel: pygame.Surface, game: Game, pad: int):
@@ -559,7 +618,7 @@ class Renderer:
             and game.result.steps
             and game.result.steps[-1].extra.get('caught')
         )
-        title = "VICTORY" if game.result.found else "CAUGHT" if caught else "NO PATH FOUND"
+        title = "TREASURE FOUND" if game.result.found else "CAUGHT" if caught else "NO PATH FOUND"
         color = C.GOAL_COLOR if game.result.found else C.VIZ_BACKTRACK
         title_s = self.f_title.render(title, True, color)
         self.screen.blit(title_s, (rect.centerx - title_s.get_width() // 2, y + 22))

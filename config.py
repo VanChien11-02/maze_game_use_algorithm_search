@@ -16,6 +16,16 @@ SCREEN_H   = MAP_H              # 720
 FPS        = 60
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 LOGO_PATH  = os.path.join(BASE_DIR, 'assets', 'hcmute_logo.png')
+SHOW_ALGO_TRACE = False
+SHOW_ROUTE_LINE = True
+
+DIFFICULTY_PRESETS = {
+    'Classic':  {'extra_ratio': 0.015, 'extra_min': 5,  'braid_ratio': 0.10},
+    'Balanced': {'extra_ratio': 0.040, 'extra_min': 8,  'braid_ratio': 0.35},
+    'Open':     {'extra_ratio': 0.070, 'extra_min': 12, 'braid_ratio': 0.55},
+}
+DIFFICULTY_NAMES = list(DIFFICULTY_PRESETS.keys())
+CURRENT_DIFFICULTY_IDX = DIFFICULTY_NAMES.index('Balanced')
 
 
 def set_grid_size(size: int):
@@ -28,6 +38,20 @@ def set_grid_size(size: int):
     ROWS = size
     TILE_SIZE = MAP_W // size
 
+
+def current_difficulty_name() -> str:
+    return DIFFICULTY_NAMES[CURRENT_DIFFICULTY_IDX % len(DIFFICULTY_NAMES)]
+
+
+def set_difficulty(name: str):
+    global CURRENT_DIFFICULTY_IDX
+    if name in DIFFICULTY_NAMES:
+        CURRENT_DIFFICULTY_IDX = DIFFICULTY_NAMES.index(name)
+
+
+def current_difficulty_settings() -> dict:
+    return DIFFICULTY_PRESETS[current_difficulty_name()]
+
 # Tốc độ animation
 ALGO_STEP_FAST   = 0.03
 ALGO_STEP_NORMAL = 0.08
@@ -38,16 +62,16 @@ BLACK         = (0,   0,   0)
 WHITE         = (255, 255, 255)
 BG_COLOR      = (5,   9,  18)
 
-WALL_COLOR    = (28,  34,  62)
-WALL_EDGE     = (88, 124, 190)
-WALL_LIGHT    = (114, 152, 224)
-WALL_SHADOW   = (8,   12,  26)
-WALL_MORTAR   = (54,  72, 116)
-FLOOR_COLOR   = (10,  18,  32)
-FLOOR_DOT     = (50,  86, 135)
-FLOOR_EDGE    = (22,  48,  78)
-FLOOR_LIGHT   = (29,  58,  94)
-FLOOR_HILITE  = (20,  42,  72)
+WALL_COLOR    = (48,  52,  58)
+WALL_EDGE     = (82,  88,  96)
+WALL_LIGHT    = (112, 118, 126)
+WALL_SHADOW   = (22,  24,  28)
+WALL_MORTAR   = (66,  70,  76)
+FLOOR_COLOR   = (126, 108,  82)
+FLOOR_DOT     = (178, 154, 112)
+FLOOR_EDGE    = (96,  80,  60)
+FLOOR_LIGHT   = (156, 136, 100)
+FLOOR_HILITE  = (140, 120,  88)
 UNKNOWN_COLOR = (4,   6,  12)   # Ô chưa nhìn thấy (BFS-PO)
 
 START_COLOR   = (50,  220, 120)
@@ -63,10 +87,10 @@ MONSTER_GLOW  = (255, 120, 185)
 VIZ_VISITED   = (0,   130, 255)
 VIZ_FRONTIER  = (255, 145,  35)
 VIZ_CURRENT   = (255, 245,  95)
-VIZ_PATH      = (0,   255, 210)
-VIZ_PATH_DARK = (0,   88,  96)
-ROUTE_CORE    = (210, 255, 255)
-ROUTE_NODE_DARK = (0, 40, 48)
+VIZ_PATH      = (255, 224, 145)
+VIZ_PATH_DARK = (118,  82,  32)
+ROUTE_CORE    = (255, 248, 215)
+ROUTE_NODE_DARK = (72, 48, 18)
 VIZ_BACKTRACK = (255,  75,  90)
 VIZ_STUCK     = (255, 100,  50)   # Steepest HC bị kẹt
 
@@ -179,16 +203,17 @@ def get_algo_group(algo_name: str) -> str:
     return ''
 
 # ── Theme system: nhấn H để đổi phong cách maze ─────────────
-THEME_NAMES = ['Cyber', 'Dungeon', 'Neon', 'Space']
+THEME_NAMES = ['Stone Maze', 'Dungeon', 'Neon', 'Space']
 CURRENT_THEME_IDX = 0
 _THEMES = {
-    'Cyber': {
-        'BG_COLOR': (5, 9, 18), 'WALL_COLOR': (28,34,62), 'WALL_LIGHT': (114,152,224),
-        'WALL_SHADOW': (8,12,26), 'WALL_MORTAR': (54,72,116), 'FLOOR_COLOR': (10,18,32),
-        'FLOOR_DOT': (50,86,135), 'FLOOR_EDGE': (22,48,78), 'FLOOR_LIGHT': (29,58,94),
-        'FLOOR_HILITE': (20,42,72), 'START_COLOR': (50,220,120), 'START_GLOW': (80,255,160),
+    'Stone Maze': {
+        'BG_COLOR': (5, 9, 18), 'WALL_COLOR': (48,52,58), 'WALL_LIGHT': (112,118,126),
+        'WALL_SHADOW': (22,24,28), 'WALL_MORTAR': (66,70,76), 'FLOOR_COLOR': (126,108,82),
+        'FLOOR_DOT': (178,154,112), 'FLOOR_EDGE': (96,80,60), 'FLOOR_LIGHT': (156,136,100),
+        'FLOOR_HILITE': (140,120,88), 'START_COLOR': (50,220,120), 'START_GLOW': (80,255,160),
         'GOAL_COLOR': (255,180,0), 'GOAL_GLOW': (255,220,80), 'VIZ_VISITED': (0,130,255),
-        'VIZ_FRONTIER': (255,145,35), 'VIZ_PATH': (0,255,210), 'HUD_TITLE': (95,225,255),
+        'VIZ_FRONTIER': (255,145,35), 'VIZ_PATH': (255,224,145), 'VIZ_PATH_DARK': (118,82,32),
+        'ROUTE_CORE': (255,248,215), 'ROUTE_NODE_DARK': (72,48,18), 'HUD_TITLE': (95,225,255),
         'PLAY_BG': (0,105,82), 'PLAY_HOVER': (0,155,115), 'PLAY_BORDER': (0,255,185)
     },
     'Dungeon': {

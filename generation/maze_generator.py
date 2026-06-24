@@ -116,3 +116,47 @@ def add_extra_passages(grid: List[List[int]], rows: int, cols: int,
         grid[r][c] = 1
 
     return grid
+
+
+def braid_maze(grid: List[List[int]], rows: int, cols: int,
+               ratio: float = 0.35) -> List[List[int]]:
+    """
+    Reduce dead ends by opening one nearby wall for a portion of cul-de-sacs.
+    This creates loops and side routes while keeping the maze structure readable.
+    """
+    directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+
+    def floor_neighbor_count(r: int, c: int) -> int:
+        return sum(
+            1
+            for dr, dc in directions
+            if 0 <= r + dr < rows and 0 <= c + dc < cols
+            and grid[r + dr][c + dc] != 0
+        )
+
+    dead_ends = [
+        (r, c)
+        for r in range(1, rows - 1)
+        for c in range(1, cols - 1)
+        if grid[r][c] != 0 and floor_neighbor_count(r, c) == 1
+    ]
+    random.shuffle(dead_ends)
+
+    openings = max(0, int(len(dead_ends) * ratio))
+    for r, c in dead_ends[:openings]:
+        candidates = []
+        for dr, dc in directions:
+            wr, wc = r + dr, c + dc
+            br, bc = r + 2 * dr, c + 2 * dc
+            if not (1 <= wr < rows - 1 and 1 <= wc < cols - 1):
+                continue
+            if not (1 <= br < rows - 1 and 1 <= bc < cols - 1):
+                continue
+            if grid[wr][wc] == 0 and grid[br][bc] != 0:
+                candidates.append((wr, wc))
+
+        if candidates:
+            wr, wc = random.choice(candidates)
+            grid[wr][wc] = 1
+
+    return grid

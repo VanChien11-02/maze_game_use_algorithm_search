@@ -107,7 +107,7 @@ def main():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
     pygame.init()
-    pygame.display.set_caption("AI Maze Solver - Me Cung AI")
+    pygame.display.set_caption("AI Maze Solver - Treasure Maze AI")
 
     try:
         icon = pygame.image.load(C.LOGO_PATH)

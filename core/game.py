@@ -9,7 +9,7 @@ from typing import Optional, Tuple
 
 import config as C
 from core.maze import Maze
-from generation.maze_generator import generate_maze, find_start_exit, add_extra_passages
+from generation.maze_generator import generate_maze, find_start_exit, add_extra_passages, braid_maze
 from algorithms.base import PathResult, Step
 from algorithms import ALGO_RUNNERS
 
@@ -49,8 +49,13 @@ class Game:
         self._compare_step_timer = 0.0
 
     def _init_maze(self):
+        difficulty = C.current_difficulty_settings()
         grid  = generate_maze(C.COLS, C.ROWS, seed=self.seed)
-        grid  = add_extra_passages(grid, C.ROWS, C.COLS, extra=8)
+        extra = max(difficulty['extra_min'],
+                    int(C.ROWS * C.COLS * difficulty['extra_ratio']))
+        grid  = add_extra_passages(grid, C.ROWS, C.COLS, extra=extra)
+        grid  = braid_maze(grid, C.ROWS, C.COLS,
+                           ratio=difficulty['braid_ratio'])
         start, goal = find_start_exit(grid, C.ROWS, C.COLS)
         self.maze = Maze(grid, C.ROWS, C.COLS, start, goal)
 
@@ -72,6 +77,17 @@ class Game:
         self.reset_algo()
         self.message = f"Matrix {size}x{size} | Tile={C.TILE_SIZE}px"
         self.message_color = C.HUD_TITLE
+
+    def set_difficulty(self, name: str):
+        if name == C.current_difficulty_name():
+            return
+        C.set_difficulty(name)
+        self.seed = random.randint(0, 99999)
+        self._init_maze()
+        self.player_pos = self.maze.start
+        self.reset_algo()
+        self.message = f"Difficulty: {name}"
+        self.message_color = C.GOAL_COLOR
 
     def run_algorithm(self, algo_name: str):
         if algo_name not in ALGO_RUNNERS:
@@ -186,7 +202,7 @@ class Game:
         name = C.next_theme()
         if self.maze:
             self.maze._tile_surf = self.maze._build_tiles()
-        self.message = f"Theme: {name} | Cyber/Dungeon/Neon/Space"
+        self.message = f"Theme: {name} | Stone Maze/Dungeon/Neon/Space"
         self.message_color = C.HUD_TITLE
 
     def toggle_speed(self):
@@ -206,7 +222,7 @@ class Game:
         if self.maze.is_walkable(nr, nc):
             self.player_pos = (nr, nc)
             if self.player_pos == self.maze.goal:
-                self.message       = "Ban da den Goal!"
+                self.message       = "Treasure Found!"
                 self.message_color = C.GOAL_COLOR
             return True
         return False
@@ -217,7 +233,7 @@ class Game:
         if self.current_step_idx >= len(self.result.steps):
             self.playback_state = PlaybackState.DONE
             if self.result.found:
-                self.message = (f"[{self.current_algo}] Tim thay! "
+                self.message = (f"[{self.current_algo}] Treasure Found! "
                                 f"Duong: {self.result.path_length} buoc | "
                                 f"Visited: {self.result.total_visited} o | "
                                 f"Time: {self.result.elapsed_ms:.1f}ms")
