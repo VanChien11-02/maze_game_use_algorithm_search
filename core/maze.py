@@ -23,11 +23,13 @@ class Maze:
         self.start = start
         self.goal  = goal
         self._tick = 0.0
+        # Tile size tự động: đảm bảo mê cung vừa khít khu vực MAP_W x MAP_H
+        self.tile_size = min(C.MAP_W // cols, C.MAP_H // rows)
         self._tile_surf = self._build_tiles()
         self._font_marker = None   # lazy init
 
     def _build_tiles(self):
-        ts   = C.TILE_SIZE
+        ts   = self.tile_size
         wall = pygame.Surface((ts, ts))
         wall.fill(C.WALL_COLOR)
         pygame.draw.rect(wall, C.WALL_EDGE, (0, 0, ts, ts), 1)
@@ -62,9 +64,10 @@ class Maze:
              current_step: int = 0,
              player_pos: Tuple[int,int] = None,
              known_cells: Set[Tuple[int,int]] = None,
-             ghost_pos: Tuple[int,int] = None):
+             ghost_pos: Tuple[int,int] = None,
+             show_start: bool = True):
         """Vẽ mê cung + visualization overlay."""
-        ts = C.TILE_SIZE
+        ts = self.tile_size
 
         # 1. Tiles (fog-of-war nếu có known_cells)
         for r in range(self.rows):
@@ -82,10 +85,13 @@ class Maze:
             self._draw_viz(surface, result.steps[step_idx], result, current_step, ts)
 
         # 3. Start & Goal markers
-        self._draw_start_goal(surface, ts)
+        actual_show_start = show_start
+        if result and result.algo_name == 'BFS-PO':
+            actual_show_start = False
+        self._draw_start_goal(surface, ts, actual_show_start)
 
         # 4. Player sprite
-        if player_pos:
+        if player_pos and (not result or result.algo_name != 'BFS-PO'):
             self._draw_player(surface, player_pos, ts)
 
         # 5. Ghost sprite (quái vật đuổi theo)
@@ -97,6 +103,31 @@ class Maze:
     def _draw_viz(self, surface: pygame.Surface, step: Step,
                   result: PathResult, current_step: int, ts: int):
         is_done = (current_step >= len(result.steps))
+
+        is_bfs_po = (result.algo_name == 'BFS-PO')
+
+        if is_bfs_po:
+            # Đối với BFS-PO: Chỉ vẽ các chấm tròn cam (candidates) và đường đi của chúng đến đích
+            candidate_paths = step.extra.get('candidate_paths', [])
+            if candidate_paths:
+                temp_surf = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
+                for path in candidate_paths:
+                    if len(path) >= 2:
+                        pts = [(p[1]*ts + ts//2, p[0]*ts + ts//2) for p in path]
+                        # Vẽ đường màu cam chỉ hướng đến đích
+                        pygame.draw.lines(temp_surf, (255, 140, 0, 110), False, pts, 2)
+                surface.blit(temp_surf, (0, 0))
+
+            # Vẽ các chấm cam đại diện cho các trạng thái tin tưởng trong Belief State
+            for pos in step.frontier:
+                r, c = pos
+                cx, cy = c*ts + ts//2, r*ts + ts//2
+                glow = pygame.Surface((ts, ts), pygame.SRCALPHA)
+                pygame.draw.circle(glow, (255, 140, 0, 100), (ts//2, ts//2), ts//2 - 2)
+                surface.blit(glow, (c*ts, r*ts))
+                pygame.draw.circle(surface, (255, 165, 0), (cx, cy), ts//2 - 5)
+                pygame.draw.circle(surface, C.WHITE, (cx, cy), ts//2 - 5, 1)
+            return
 
         # Visited — xanh navy
         for pos in step.visited:
@@ -148,20 +179,21 @@ class Maze:
 
     # ── Start / Goal ─────────────────────────────────────────
 
-    def _draw_start_goal(self, surface: pygame.Surface, ts: int):
+    def _draw_start_goal(self, surface: pygame.Surface, ts: int, show_start: bool = True):
         glow_a = int(150 + math.sin(self._tick * 3) * 50)
         font   = self._get_marker_font()
 
         # START
-        sr, sc = self.start
-        sx, sy = sc*ts + ts//2, sr*ts + ts//2
-        gs = pygame.Surface((ts, ts), pygame.SRCALPHA)
-        pygame.draw.circle(gs, (*C.START_GLOW, min(255, glow_a)), (ts//2, ts//2), ts//2-1)
-        surface.blit(gs, (sc*ts, sr*ts))
-        pygame.draw.circle(surface, C.START_COLOR, (sx, sy), ts//2-4)
-        pygame.draw.circle(surface, C.WHITE, (sx, sy), ts//2-4, 2)
-        lbl = font.render('S', True, C.WHITE)
-        surface.blit(lbl, (sx - lbl.get_width()//2, sy - lbl.get_height()//2))
+        if show_start:
+            sr, sc = self.start
+            sx, sy = sc*ts + ts//2, sr*ts + ts//2
+            gs = pygame.Surface((ts, ts), pygame.SRCALPHA)
+            pygame.draw.circle(gs, (*C.START_GLOW, min(255, glow_a)), (ts//2, ts//2), ts//2-1)
+            surface.blit(gs, (sc*ts, sr*ts))
+            pygame.draw.circle(surface, C.START_COLOR, (sx, sy), ts//2-4)
+            pygame.draw.circle(surface, C.WHITE, (sx, sy), ts//2-4, 2)
+            lbl = font.render('S', True, C.WHITE)
+            surface.blit(lbl, (sx - lbl.get_width()//2, sy - lbl.get_height()//2))
 
         # GOAL
         gr, gc = self.goal
