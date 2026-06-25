@@ -65,35 +65,45 @@ def run_backtracking(grid: List[List[int]],
         description=f"[Bắt đầu] Tại {start} | Đường hiện tại = [{start}]",
     ))
 
+    # Xác định miền giá trị toàn cục gồm tất cả các ô sàn trong mê cung
+    all_floors = []
+    for r_idx in range(rows):
+        for c_idx in range(cols):
+            if grid[r_idx][c_idx] != 0:
+                all_floors.append((r_idx, c_idx))
+
     def backtrack(current: Tuple[int,int], path: List[Tuple[int,int]],
                   on_path: set) -> bool:
         """
-        Đệ quy backtracking.
-        path: đường đi hiện tại (list có thứ tự)
-        on_path: tập ô trong đường hiện tại (để kiểm tra nhanh)
+        Đệ quy backtracking thuần túy.
+        Duyệt qua toàn bộ miền giá trị (tập các ô sàn) thay vì kiểm tra trước hướng đi kề.
         """
         if current == goal:
             result_path[0] = path[:]
             return True
 
         r, c = current
-        # Sắp xếp hướng: ưu tiên ô gần Goal (heuristic)
-        dirs_sorted = sorted(
-            DIRECTIONS,
-            key=lambda d: manhattan((r+d[0], c+d[1]), goal)
+        # Sắp xếp toàn bộ các ô sàn theo Heuristic (gần Goal trước) để tối ưu thứ tự thử
+        all_floors_sorted = sorted(
+            all_floors,
+            key=lambda cell: manhattan(cell, goal)
         )
 
-        for dr, dc in dirs_sorted:
-            nr, nc = r + dr, c + dc
-            npos = (nr, nc)
+        for npos in all_floors_sorted:
+            nr, nc = npos
 
-            if not (0 <= nr < rows and 0 <= nc < cols):
+            # ── KIỂM TRA RÀNG BUỘC SAU KHI GÁN (Post-Assignment Constraint Checks) ──
+            # 1. Ràng buộc kề: ô mới được gán phải kề với ô hiện tại
+            if abs(nr - r) + abs(nc - c) != 1:
                 continue
+            # 2. Ràng buộc không trùng lặp: ô mới chưa nằm trong đường đi hiện tại
+            if npos in on_path:
+                continue
+            # 3. Ràng buộc tường: ô mới không phải là tường
             if grid[nr][nc] == 0:
                 continue
-            if npos in on_path:   # Ràng buộc: không lặp lại
-                continue
 
+            # Gán giá trị hợp lệ
             visited_global.add(npos)
             step_num[0] += 1
             path.append(npos)
@@ -118,7 +128,7 @@ def run_backtracking(grid: List[List[int]],
             if backtrack(npos, path, on_path):
                 return True
 
-            # BACKTRACK
+            # BACKTRACK (Quay lui khi nhánh này bị thất bại)
             path.pop()
             on_path.discard(npos)
             step_num[0] += 1
