@@ -118,6 +118,7 @@ class Renderer:
         )
 
         self.play_btn = pygame.Rect(hx, self.Y_PLAY, cb_w, self.PLAY_H)
+        self.depth_btn = pygame.Rect(C.MAP_W + C.HUD_W - pad - 190, 17, 76, 24)
         self._group_idx = 0
 
     def _algo_options(self, group_name: str):
@@ -187,6 +188,15 @@ class Renderer:
                        or (drop_size and drop_size.collidepoint(mx, my)))
             in_diff = (hdr_diff.collidepoint(mx, my)
                        or (drop_diff and drop_diff.collidepoint(mx, my)))
+
+            if self.depth_btn.collidepoint(mx, my):
+                self.cb_group.close()
+                self.cb_algo.close()
+                self.cb_compare.close()
+                self.cb_size.close()
+                self.cb_difficulty.close()
+                game.cycle_alpha_beta_depth()
+                return False
 
             if in_cb1:
                 self.cb_algo.close()
@@ -317,6 +327,7 @@ class Renderer:
         subtitle = self.f_tiny.render(f"{C.current_theme_name()} theme | Treasure Maze AI {C.GRID_SIZE}x{C.GRID_SIZE} | {algo_count} thuat toan",
                                       True, C.HUD_MUTED)
         panel.blit(subtitle, (pad + 44, 37))
+        _draw_chip(panel, self.f_tiny, f"AB d{C.ALPHA_BETA_DEPTH}", C.HUD_W - pad - 190, 17, C.MONSTER_GLOW)
         _draw_chip(panel, self.f_tiny, f"H: {C.current_theme_name()}", C.HUD_W - pad - 108, 17, C.HUD_TITLE)
 
     def _draw_logo(self, surface: pygame.Surface, x: int, y: int, size: int):
@@ -468,14 +479,30 @@ class Renderer:
             if game.current_algo == "Alpha-Beta":
                 extra = step.extra
                 turn = extra.get("turn", "--")
+                status = extra.get("status", "--")
                 score = extra.get("score", 0)
                 nodes = extra.get("nodes", 0)
                 prunes = extra.get("prunes", 0)
+                cache_hits = extra.get("cache_hits", 0)
+                loop = " | LOOP" if extra.get("loop_detected") else ""
 
                 desc = (
-                    f"{turn} | score={score:.1f} | "
-                    f"nodes={nodes} | prunes={prunes} | "
+                    f"{turn}/{status}{loop} | d={extra.get('depth', '--')} | "
+                    f"score={score:.1f} | nodes={nodes} | "
+                    f"prunes={prunes} | cache={cache_hits} | "
                     f"Monster={extra.get('monster_pos')}"
+                )
+            elif game.current_algo == "Forward Checking":
+                extra = step.extra
+                removed = extra.get("removed_values", extra.get("restored_values", set()))
+                future = extra.get("future_domain", [])
+                var = extra.get("var", "--")
+                value = extra.get("value", extra.get("removed_assignment", "--"))
+                h = extra.get("h", "--")
+                desc = (
+                    f"{extra.get('mode', '--')} | {var}={value} | "
+                    f"removed={len(removed)} | next_domain={len(future)} | "
+                    f"h={h} | {extra.get('reason', '')}"
                 )
 
             _draw_wrapped_limited(
@@ -552,6 +579,7 @@ class Renderer:
             ("H", "Theme"),
             ("M", "Race"),
             ("P", "Preview"),
+            ("Y", f"AB d{C.ALPHA_BETA_DEPTH}"),
             ("Esc", "Menu"),
         ]
         x = pad

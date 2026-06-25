@@ -20,6 +20,9 @@ SHOW_ALGO_TRACE = False
 SHOW_ROUTE_LINE = True
 SHOW_UPCOMING_PREVIEW = True
 
+ALPHA_BETA_DEPTH_OPTIONS = [3, 5, 7]
+ALPHA_BETA_DEPTH = 5
+
 DIFFICULTY_PRESETS = {
     'Classic':  {'extra_ratio': 0.015, 'extra_min': 5,  'braid_ratio': 0.10},
     'Balanced': {'extra_ratio': 0.040, 'extra_min': 8,  'braid_ratio': 0.35},
@@ -52,6 +55,16 @@ def set_difficulty(name: str):
 
 def current_difficulty_settings() -> dict:
     return DIFFICULTY_PRESETS[current_difficulty_name()]
+
+
+def next_alpha_beta_depth() -> int:
+    global ALPHA_BETA_DEPTH
+    try:
+        idx = ALPHA_BETA_DEPTH_OPTIONS.index(ALPHA_BETA_DEPTH)
+    except ValueError:
+        idx = 1
+    ALPHA_BETA_DEPTH = ALPHA_BETA_DEPTH_OPTIONS[(idx + 1) % len(ALPHA_BETA_DEPTH_OPTIONS)]
+    return ALPHA_BETA_DEPTH
 
 # Tốc độ animation
 ALGO_STEP_FAST   = 0.03
@@ -180,9 +193,8 @@ ALGO_GROUPS = {
         'color':   (130,  60, 180),
         'algorithms': {
             'Backtrack': 'Backtracking Search',
-            'Min-Conflicts': 'Min-Conflicts',
+            'Forward Checking': 'Forward Checking Search',
             # Thêm: 'AC3': 'Arc Consistency (AC-3)',
-            # Thêm: 'FC':  'Forward Checking',
         },
     },
     'Adversarial Search': {

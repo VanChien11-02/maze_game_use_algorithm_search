@@ -231,6 +231,11 @@ class Game:
         self.message       = f"Toc do: {labels[idx]}"
         self.message_color = C.HUD_TEXT
 
+    def cycle_alpha_beta_depth(self):
+        depth = C.next_alpha_beta_depth()
+        self.message = f"Alpha-Beta depth: {depth}"
+        self.message_color = C.get_algo_color("Alpha-Beta")
+
     def try_move_player(self, dr: int, dc: int) -> bool:
         nr, nc = self.player_pos[0]+dr, self.player_pos[1]+dc
         if self.maze.is_walkable(nr, nc):
@@ -255,8 +260,16 @@ class Game:
                 self.message_color = C.START_COLOR
             else:
                 last_extra = self.result.steps[-1].extra if self.result.steps else {}
+                status = last_extra.get("status")
 
-                if self.current_algo == "Alpha-Beta" and last_extra.get("caught"):
+                if self.current_algo == "Alpha-Beta" and status == "LOOP":
+                    pattern = last_extra.get("loop_pattern", ())
+                    self.message = (
+                        "[Alpha-Beta] LOOP detected | "
+                        f"pattern={pattern} | Visited: {self.result.total_visited} o"
+                    )
+                    self.message_color = C.HUD_WARN
+                elif self.current_algo == "Alpha-Beta" and last_extra.get("caught"):
                     self.message = (
                         "[Alpha-Beta] Monster thắng! Người chơi bị bắt | "
                         f"Visited: {self.result.total_visited} ô"
@@ -264,10 +277,10 @@ class Game:
                     self.message_color = C.VIZ_BACKTRACK
                 else:
                     self.message = (
-                        f"[{self.current_algo}] Không tìm thấy đường! "
-                        f"Visited: {self.result.total_visited} ô"
-        )
-        self.message_color = C.VIZ_BACKTRACK
+                        f"[{self.current_algo}] No path found! "
+                        f"Visited: {self.result.total_visited} o"
+                    )
+                    self.message_color = C.VIZ_BACKTRACK
 
     def update(self, dt: float):
         self._tick += dt

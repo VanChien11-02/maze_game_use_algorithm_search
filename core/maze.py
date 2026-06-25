@@ -300,6 +300,44 @@ class Maze:
                 glow=False,
             )
 
+        pruned_cells = step.extra.get("pruned_cells", set())
+        for pos in pruned_cells:
+            if pos in (self.start, self.goal):
+                continue
+            if known_cells is not None and pos not in known_cells:
+                continue
+            if not self.is_walkable(pos[0], pos[1]):
+                continue
+            r, c = pos
+            self._draw_cell_overlay(
+                surface,
+                r,
+                c,
+                C.VIZ_BACKTRACK,
+                120,
+                inset=max(3, C.TILE_SIZE // 6),
+                radius=4,
+                glow=False,
+            )
+            if C.TILE_SIZE >= 16:
+                x = c * C.TILE_SIZE
+                y = r * C.TILE_SIZE
+                pad = max(4, C.TILE_SIZE // 4)
+                pygame.draw.line(
+                    surface,
+                    C.WHITE,
+                    (x + pad, y + pad),
+                    (x + C.TILE_SIZE - pad, y + C.TILE_SIZE - pad),
+                    max(2, C.TILE_SIZE // 12),
+                )
+                pygame.draw.line(
+                    surface,
+                    C.WHITE,
+                    (x + C.TILE_SIZE - pad, y + pad),
+                    (x + pad, y + C.TILE_SIZE - pad),
+                    max(2, C.TILE_SIZE // 12),
+                )
+
         route = (
             result.path
             if current_step >= len(result.steps) and result.path

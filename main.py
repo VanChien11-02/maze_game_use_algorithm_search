@@ -97,6 +97,8 @@ def run_game(screen: pygame.Surface) -> str:
                     game.toggle_race_mode()
                 elif key == pygame.K_p:
                     game.toggle_preview()
+                elif key == pygame.K_y:
+                    game.cycle_alpha_beta_depth()
                 # Di chuyển player
                 elif key == pygame.K_UP    or key == pygame.K_w:
                     game.try_move_player(-1, 0)

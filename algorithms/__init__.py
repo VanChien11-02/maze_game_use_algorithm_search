@@ -36,7 +36,7 @@ from algorithms.local.simulated_annealing import run_simulated_annealing
 from algorithms.complex_env.bfs_partial import run_bfs_partial
 from algorithms.complex_env.and_or_graph_search import run_and_or_graph_search
 from algorithms.csp.backtracking    import run_backtracking
-from algorithms.csp.min_conflicts   import run_min_conflicts
+from algorithms.csp.forward_checking import run_forward_checking
 from algorithms.adversarial.alpha_beta import run_alpha_beta
 
 # Map: key (khop voi config.ALGO_GROUPS) -> ham chay
@@ -50,6 +50,6 @@ ALGO_RUNNERS = {
     'BFS-PO':      run_bfs_partial,
     'AND-OR':      run_and_or_graph_search,
     'Backtrack':   run_backtracking,
-    'Min-Conflicts': run_min_conflicts,
+    'Forward Checking': run_forward_checking,
     'Alpha-Beta':  run_alpha_beta,
 }

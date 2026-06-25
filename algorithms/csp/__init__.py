@@ -3,5 +3,5 @@
 # De them thuat toan moi: tao file <ten>.py trong thu muc nay va import o day
 
 from algorithms.csp.backtracking import *
-from algorithms.csp.min_conflicts import *
+from algorithms.csp.forward_checking import *
 
