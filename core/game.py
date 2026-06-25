@@ -57,16 +57,22 @@ class Game:
             self.message = f"Thuật toán '{algo_name}' không tồn tại!"
             return
 
+        # Phục hồi mê cung 30x30 nếu có lưu trước đó
+        if hasattr(self, '_saved_maze') and self._saved_maze is not None:
+            self.maze = self._saved_maze
+            self._saved_maze = None
+            self.player_pos = self.maze.start
+
+        group = C.get_algo_group(algo_name)
         self.current_algo     = algo_name
         runner                = ALGO_RUNNERS[algo_name]
         self.result           = runner(self.maze.grid,
                                        self.maze.start, self.maze.goal,
-                                       C.ROWS, C.COLS)
+                                       self.maze.rows, self.maze.cols)
         self.current_step_idx = 0
         self.playback_state   = PlaybackState.RUNNING
         self._step_timer      = 0.0
 
-        group = C.get_algo_group(algo_name)
         self.message = (f"[{algo_name}] | {group} | "
                         f"Tong {self.result.total_steps} buoc")
         self.message_color = C.get_algo_color(algo_name)

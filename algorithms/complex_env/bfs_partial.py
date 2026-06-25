@@ -1,249 +1,369 @@
-# algorithms/bfs_partial.py — Nhóm 4: Complex Environment — BFS Partially Observable
+# algorithms/complex_env/bfs_partial.py — Nhom 4: Complex Environment — Belief State Search
 """
-BFS Partially Observable — BFS trong môi trường quan sát một phần
-══════════════════════════════════════════════════════════════════
-Nhóm: Searching in Complex Environments (Môi trường phức tạp)
-Bài toán: Tìm đường Start→Goal khi agent CHỈ NHÌN THẤY
-          các ô trong bán kính VISIBILITY_RADIUS xung quanh vị trí hiện tại
+Belief State Search — Tim kiem trong me cung toi (Blind Maze)
+==============================================================
+Nhom: Searching in Complex Environments (Moi truong phuc tap)
+Bai toan: AI bi tha vao me cung toi, KHONG BIET vi tri hien tai.
+          Ban do me cung (tuong/san) DA BIET TRUOC, nhung khong co
+          dau cham bao vi tri.
 
-Trạng thái bắt đầu:
-    - Vị trí: Start (r, c)
-    - Bản đồ đã biết (known): chỉ những ô trong tầm nhìn của Start
-    - Tầm nhìn: bán kính = VISIBILITY_RADIUS ô (Manhattan distance)
-    - Fog of War: các ô ngoài tầm nhìn vẽ màu tối
+Trang thai bat dau:
+    - Belief State = tap tat ca cac o san trong me cung
+    - AI khong biet minh dang o dau
+    - Biet dich Goal o dau tren ban do
 
-Các bước thực hiện:
-    1. Cập nhật known_map từ vị trí hiện tại (reveal cells)
-    2. Nếu Goal đã thấy:
-       → BFS trên known từ vị trí hiện tại đến Goal
-       → Di chuyển từng ô theo đường BFS
-    3. Nếu Goal chưa thấy:
-       → BFS tìm "frontier cell" (ô known kề với unknown)
-       → Di chuyển đến đó để khám phá
-    4. Lặp đến Goal hoặc đã khám phá hết
+Cac buoc thuc hien:
+    1. AI chon mot huong di (Len/Xuong/Trai/Phai)
+    2. Sau moi buoc, AI quan sat ket qua:
+       - Neu di duoc (vi tri thay doi) hoac bi chan (tuong)
+    3. Loc Belief State: chi giu lai nhung vi tri ma ket qua
+       khop voi quan sat thuc te
+    4. Khi Belief State con 1 o -> AI da biet chinh xac vi tri
+       -> Dung A* de chay thang ve Goal
 
-Trạng thái kết thúc:
-    - Found: đến Goal (đường dài hơn optimal vì thiếu thông tin)
-    - Not found: không thể khám phá thêm
+Trang thai ket thuc:
+    - Found: xac dinh vi tri + den duoc Goal
+    - Not found: khong the thu hep Belief State
 
-Đặc điểm:
-    - FOG OF WAR: ô tối = chưa biết, ô sáng = đã biết
-    - Path dài hơn BFS vì phải khám phá trong mù
-    - Radius nhỏ → khám phá nhiều hơn, path dài hơn
+Dac diem:
+    - SU DUNG set() de luu Belief State (hash nhanh)
+    - SU DUNG tuple(r, c) lam toa do (immutable, hashable)
+    - Chien luoc chon huong di: Chon huong chia Belief State
+      khong deu nhat de loai bo nhieu vi tri nhat (Information Gain)
+    - Khi bi ket (khong loai bo duoc vi tri nao): di chuyen ngau nhien
+      de thay doi trang thai tuong doi giua cac vi tri kha thi
 """
 
 import time
+import heapq
+import random
 from collections import deque
 from typing import List, Tuple, Set, Optional
-from algorithms.base import Step, PathResult, reconstruct_path
+from algorithms.base import Step, PathResult
 
 
-DIRECTIONS        = [(-1,0),(1,0),(0,-1),(0,1)]
-VISIBILITY_RADIUS = 5    # Tầm nhìn (Manhattan radius)
+DIRECTIONS = {
+    'UP':    (-1, 0),
+    'DOWN':  ( 1, 0),
+    'LEFT':  ( 0,-1),
+    'RIGHT': ( 0, 1),
+}
+
+DIR_NAMES = list(DIRECTIONS.keys())
 
 
-def manhattan(a: Tuple[int,int], b: Tuple[int,int]) -> int:
-    return abs(a[0]-b[0]) + abs(a[1]-b[1])
+def get_all_floor_cells(grid: List[List[int]], rows: int, cols: int) -> Set[Tuple[int, int]]:
+    """Tra ve tap tat ca cac o san (grid[r][c] != 0) trong me cung."""
+    floors: Set[Tuple[int, int]] = set()
+    for r in range(rows):
+        for c in range(cols):
+            if grid[r][c] != 0:
+                floors.add((r, c))
+    return floors
 
 
-def reveal_cells(pos: Tuple[int,int], grid: List[List[int]],
-                 rows: int, cols: int,
-                 known: Set[Tuple[int,int]]) -> int:
-    """Thêm tất cả ô trong bán kính vào known. Trả về số ô mới reveal."""
-    r, c  = pos
-    count = 0
-    for dr in range(-VISIBILITY_RADIUS, VISIBILITY_RADIUS+1):
-        for dc in range(-VISIBILITY_RADIUS, VISIBILITY_RADIUS+1):
-            if abs(dr)+abs(dc) <= VISIBILITY_RADIUS:
-                nr, nc = r+dr, c+dc
-                if 0 <= nr < rows and 0 <= nc < cols:
-                    cell = (nr, nc)
-                    if cell not in known:
-                        known.add(cell)
-                        count += 1
-    return count
+def can_move(grid: List[List[int]], pos: Tuple[int, int],
+             dr: int, dc: int, rows: int, cols: int) -> bool:
+    """Kiem tra xem tu pos co the di theo huong (dr, dc) khong."""
+    nr, nc = pos[0] + dr, pos[1] + dc
+    return 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] != 0
 
 
-def bfs_on_known(src: Tuple[int,int], dst: Tuple[int,int],
-                 grid: List[List[int]], known: Set[Tuple[int,int]],
-                 rows: int, cols: int) -> List[Tuple[int,int]]:
-    """BFS chỉ đi trên ô đã biết và là sàn (!=0)."""
-    if src == dst:
-        return [src]
-    queue   = deque([src])
-    parent  = {src: None}
-    visited = {src}
+def apply_move(pos: Tuple[int, int], dr: int, dc: int,
+               grid: List[List[int]], rows: int, cols: int) -> Tuple[int, int]:
+    """Ap dung buoc di. Neu bi tuong thi dung tai cho."""
+    nr, nc = pos[0] + dr, pos[1] + dc
+    if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] != 0:
+        return (nr, nc)
+    return pos
+
+
+def filter_belief(belief: Set[Tuple[int, int]],
+                  dr: int, dc: int,
+                  actual_moved: bool,
+                  grid: List[List[int]],
+                  rows: int, cols: int) -> Set[Tuple[int, int]]:
+    """
+    Loc Belief State sau mot buoc di:
+    - actual_moved = True:  chi giu cac vi tri ma CAN di theo (dr, dc)
+    - actual_moved = False: chi giu cac vi tri ma KHONG THE di (bi tuong)
+    Sau do cap nhat vi tri moi cho cac o con lai.
+    """
+    new_belief: Set[Tuple[int, int]] = set()
+    for pos in belief:
+        could_move = can_move(grid, pos, dr, dc, rows, cols)
+        if could_move == actual_moved:
+            if actual_moved:
+                new_belief.add((pos[0] + dr, pos[1] + dc))
+            else:
+                new_belief.add(pos)
+    return new_belief
+
+
+def choose_best_direction(belief: Set[Tuple[int, int]],
+                          grid: List[List[int]],
+                          rows: int, cols: int,
+                          goal: Tuple[int, int],
+                          stall_count: int) -> str:
+    """
+    Chon huong di tot nhat de thu hep Belief State nhieu nhat.
+    Neu da xac dinh vi tri (belief size = 1), chon huong huong ve Goal.
+    Khi bi ket (stall), xoay vong qua cac huong de pha doi xung.
+    """
+    if len(belief) == 1:
+        pos = next(iter(belief))
+        best_dir = DIR_NAMES[0]
+        best_dist = float('inf')
+        for name, (dr, dc) in DIRECTIONS.items():
+            new_pos = apply_move(pos, dr, dc, grid, rows, cols)
+            d = abs(new_pos[0] - goal[0]) + abs(new_pos[1] - goal[1])
+            if d < best_dist:
+                best_dist = d
+                best_dir = name
+        return best_dir
+
+    best_dir = DIR_NAMES[0]
+    best_score = -1
+
+    for name, (dr, dc) in DIRECTIONS.items():
+        can_count = 0
+        blocked_count = 0
+        for pos in belief:
+            if can_move(grid, pos, dr, dc, rows, cols):
+                can_count += 1
+            else:
+                blocked_count += 1
+        minority = min(can_count, blocked_count)
+        if minority > best_score:
+            best_score = minority
+            best_dir = name
+
+    # Khi bi ket (khong huong nao loai bo vi tri):
+    # Di chuyen de thay doi vi tri tuong doi giua cac vi tri kha thi.
+    # Uu tien huong ma DA SO vi tri trong belief co the di duoc,
+    # de sau khi di, cac vi tri se "tach ra" o nhung vi tri khac nhau
+    # va co the duoc phan biet boi buoc di tiep theo.
+    if best_score == 0:
+        dir_cycle = ['UP', 'RIGHT', 'DOWN', 'LEFT']
+        # Xoay vong dua tren stall_count de thu cac huong khac nhau
+        moved_dirs = []
+        for offset in range(4):
+            name = dir_cycle[(stall_count + offset) % 4]
+            dr, dc = DIRECTIONS[name]
+            can_count = sum(1 for pos in belief if can_move(grid, pos, dr, dc, rows, cols))
+            if can_count > 0:
+                moved_dirs.append((can_count, name))
+        
+        if moved_dirs:
+            # Chon huong ma nhieu vi tri nhat co the di duoc
+            moved_dirs.sort(key=lambda x: -x[0])
+            # Xoay vong qua cac huong di duoc de tang co hoi pha doi xung
+            idx = stall_count % len(moved_dirs)
+            return moved_dirs[idx][1]
+
+    return best_dir
+
+
+def find_path_bfs(grid: List[List[int]], start: Tuple[int, int],
+                  goal: Tuple[int, int], rows: int, cols: int) -> List[Tuple[int, int]]:
+    """BFS tim duong ngan nhat tu start den goal."""
+    if start == goal:
+        return [start]
+    queue = deque([start])
+    parent = {start: None}
+    visited = {start}
+    
     while queue:
-        cur = queue.popleft()
-        if cur == dst:
-            return reconstruct_path(parent, src, dst)
-        r, c = cur
-        for dr, dc in DIRECTIONS:
-            nr, nc = r+dr, c+dc
+        curr = queue.popleft()
+        if curr == goal:
+            # Reconstruct path
+            path = []
+            while curr is not None:
+                path.append(curr)
+                curr = parent[curr]
+            return path[::-1]
+            
+        r, c = curr
+        for dr, dc in DIRECTIONS.values():
+            nr, nc = r + dr, c + dc
             npos = (nr, nc)
-            if (npos in known and grid[nr][nc] != 0 and npos not in visited):
-                visited.add(npos)
-                parent[npos] = cur
-                queue.append(npos)
+            if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] != 0:
+                if npos not in visited:
+                    visited.add(npos)
+                    parent[npos] = curr
+                    queue.append(npos)
     return []
 
 
-def find_frontier_target(current: Tuple[int,int],
-                          grid: List[List[int]],
-                          known: Set[Tuple[int,int]],
-                          rows: int, cols: int
-                          ) -> Optional[Tuple[int,int]]:
-    """
-    BFS trên known để tìm ô known gần nhất kề với ô CHƯA BIẾT.
-    """
-    queue   = deque([current])
-    vis_bfs = {current}
-    while queue:
-        pos = queue.popleft()
-        r, c = pos
-        # Pos kề với ô chưa biết?
-        for dr, dc in DIRECTIONS:
-            nr, nc = r+dr, c+dc
-            if 0 <= nr < rows and 0 <= nc < cols and (nr,nc) not in known:
-                return pos
-        # Tiếp tục BFS trên known floor
-        for dr, dc in DIRECTIONS:
-            nr, nc = r+dr, c+dc
-            npos = (nr, nc)
-            if (npos in known and grid[nr][nc] != 0 and npos not in vis_bfs):
-                vis_bfs.add(npos)
-                queue.append(npos)
-    return None
-
-
 def run_bfs_partial(grid: List[List[int]],
-                    start: Tuple[int,int],
-                    goal: Tuple[int,int],
+                    start: Tuple[int, int],
+                    goal: Tuple[int, int],
                     rows: int, cols: int) -> PathResult:
     """
-    BFS Partially Observable: agent di chuyển từng ô,
-    mở rộng tầm nhìn khi đến ô mới.
+    Belief State Search: AI bi tha vao me cung toi,
+    phai tu khoanh vung vi tri bang cach di chuyen va quan sat.
     """
     t0 = time.time()
     steps: List[Step] = []
     step_num = 0
 
-    known: Set[Tuple[int,int]] = set()
-    current    = start
-    full_path  = [start]
+    # Chon dung 3 trang thai ngau nhien lam Belief State (start dai dien)
+    all_floors = list(get_all_floor_cells(grid, rows, cols))
+    belief_list = random.sample(all_floors, min(3, len(all_floors)))
+    belief: Set[Tuple[int, int]] = set(belief_list)
+    initial_size = len(belief)
+
+    # Chon ngau nhien mot trong 3 trang thai lam vi tri thuc te cua player
+    actual_pos = random.choice(belief_list)
+    start = actual_pos
+    full_path = [start]
     visited_pos = {start}
+    localized = False
 
-    # Reveal xung quanh start
-    reveal_cells(start, grid, rows, cols, known)
-    goal_visible = goal in known
+    # Tap hop tat ca cac o trong me cung de lam minimap hien thi toan bo kien truc
+    all_cells = {(r, c) for r in range(rows) for c in range(cols)}
 
+    # Tinh duong di ban dau cho tung candidate den Goal
+    candidate_paths = []
+    for cand in belief:
+        path = find_path_bfs(grid, cand, goal, rows, cols)
+        if path:
+            candidate_paths.append(path)
+
+    # Buoc 0: Trang thai ban dau
     steps.append(Step(
         step_num=0,
-        current=start,
-        frontier=list(known),
-        visited={start},
-        path_so_far=[start],
-        description=(f"[Bắt đầu] Vị trí: {start} | "
-                     f"Tầm nhìn R={VISIBILITY_RADIUS} | "
-                     f"Nhìn thấy {len(known)} ô | "
-                     f"Goal {'đã thấy!' if goal_visible else 'chưa thấy (fog)'}"),
-        extra={'known_count': len(known), 'goal_visible': goal_visible,
-               'radius': VISIBILITY_RADIUS,
-               'known_cells': set(known)}
+        current=actual_pos,
+        frontier=list(belief),
+        visited={actual_pos},
+        path_so_far=[actual_pos],
+        description=(f"[Bat dau] Me cung toi! AI co {len(belief)} vi tri nghi van. "
+                     f"Cung di BFS den Goal."),
+        extra={
+            'belief_size': len(belief),
+            'localized': False,
+            'phase': 'LOCALIZE',
+            'known_cells': all_cells,
+            'candidate_paths': candidate_paths
+        }
     ))
 
-    MAX_MOVES = 8000
-    for _ in range(MAX_MOVES):
-        if current == goal:
-            break
+    MAX_MOVES = 500
 
-        goal_visible = goal in known
+    # Di chuyen trong mot vong lap duy nhat cho den khi thuc su cham dich
+    while step_num < MAX_MOVES and actual_pos != goal:
+        # 1. Chon buoc di tiep theo
+        if len(belief) > 1:
+            # Giai doan LOCALIZE: Cung di theo candidate tot nhat den Goal
+            best_cand = None
+            best_path = None
+            for cand in belief:
+                path = find_path_bfs(grid, cand, goal, rows, cols)
+                if path and len(path) >= 2:
+                    if best_path is None or len(path) < len(best_path):
+                        best_path = path
+                        best_cand = cand
 
-        if goal_visible:
-            # BFS đến goal trên known map
-            sub_path = bfs_on_known(current, goal, grid, known, rows, cols)
-            if sub_path and len(sub_path) >= 2:
-                # Di chuyển theo đường BFS đến Goal
-                for next_pos in sub_path[1:]:
-                    if current == goal:
+            if not best_path:
+                direction = 'UP'
+                for name, (dr, dc) in DIRECTIONS.items():
+                    if any(can_move(grid, cand, dr, dc, rows, cols) for cand in belief):
+                        direction = name
                         break
-                    current = next_pos
-                    full_path.append(current)
-                    visited_pos.add(current)
-                    new_cnt = reveal_cells(current, grid, rows, cols, known)
-                    step_num += 1
-                    steps.append(Step(
-                        step_num=step_num,
-                        current=current,
-                        frontier=list(known - visited_pos),
-                        visited=set(visited_pos),
-                        path_so_far=list(full_path),
-                        description=(f"[Bước {step_num}] Goal visible → BFS → {current} | "
-                                     f"Biết: {len(known)} ô | Mới: {new_cnt}"),
-                        extra={'known_count': len(known), 'goal_visible': True,
-                               'known_cells': set(known)}
-                    ))
             else:
-                # Goal visible nhưng chưa có đường known đến đó
-                # → Tiếp tục khám phá frontier gần goal nhất
-                target = find_frontier_target(current, grid, known, rows, cols)
-                if target is None:
-                    break
-                sub_path2 = bfs_on_known(current, target, grid, known, rows, cols)
-                if not sub_path2 or len(sub_path2) < 2:
-                    break
-                next_pos = sub_path2[1]
-                current  = next_pos
-                full_path.append(current)
-                visited_pos.add(current)
-                new_cnt = reveal_cells(current, grid, rows, cols, known)
-                step_num += 1
-                goal_now = goal in known
-                steps.append(Step(
-                    step_num=step_num,
-                    current=current,
-                    frontier=list(known - visited_pos),
-                    visited=set(visited_pos),
-                    path_so_far=list(full_path),
-                    description=(f"[Bước {step_num}] Goal thấy nhưng chưa thể đến! → "
-                                 f"Tiếp tục khám phá → {current} | "
-                                 f"Biết: {len(known)} ô"),
-                    extra={'known_count': len(known), 'goal_visible': goal_now,
-                           'known_cells': set(known)}
-                ))
-
+                next_step = best_path[1]
+                move_dr = next_step[0] - best_cand[0]
+                move_dc = next_step[1] - best_cand[1]
+                direction = 'UP'
+                for name, (ddr, ddc) in DIRECTIONS.items():
+                    if (ddr, ddc) == (move_dr, move_dc):
+                        direction = name
+                        break
         else:
-            # Tìm frontier cell để khám phá
-            target = find_frontier_target(current, grid, known, rows, cols)
-            if target is None:
-                # Đã biết toàn bộ connected component → không còn gì để khám phá
-                break
-            sub_path = bfs_on_known(current, target, grid, known, rows, cols)
-            if not sub_path or len(sub_path) < 2:
-                break
-            # Di chuyển từng bước đến frontier target
-            next_pos = sub_path[1]
-            current  = next_pos
-            full_path.append(current)
-            visited_pos.add(current)
-            new_cnt = reveal_cells(current, grid, rows, cols, known)
-            step_num += 1
-            goal_now = goal in known
-            steps.append(Step(
-                step_num=step_num,
-                current=current,
-                frontier=list(known - visited_pos),
-                visited=set(visited_pos),
-                path_so_far=list(full_path),
-                description=(f"[Bước {step_num}] Khám phá → {current} | "
-                             f"Biết: {len(known)} ô | Mới: {new_cnt} | "
-                             f"Goal {'THẤY RỒI!' if goal_now else 'vẫn ẩn'}"),
-                extra={'known_count': len(known), 'goal_visible': goal_now,
-                       'known_cells': set(known)}
-            ))
+            # Giai doan NAVIGATE: Da xac dinh vi tri, di chuyen theo BFS den Goal
+            path = find_path_bfs(grid, actual_pos, goal, rows, cols)
+            if path and len(path) >= 2:
+                next_step = path[1]
+                move_dr = next_step[0] - actual_pos[0]
+                move_dc = next_step[1] - actual_pos[1]
+                direction = 'UP'
+                for name, (ddr, ddc) in DIRECTIONS.items():
+                    if (ddr, ddc) == (move_dr, move_dc):
+                        direction = name
+                        break
+            else:
+                break  # Ket duong di den Goal
+
+        dr, dc = DIRECTIONS[direction]
+
+        # Thuc hien di chuyen thuc te
+        new_pos = apply_move(actual_pos, dr, dc, grid, rows, cols)
+        actually_moved = (new_pos != actual_pos)
+        actual_pos = new_pos
+        full_path.append(actual_pos)
+        visited_pos.add(actual_pos)
+
+        # Loc Belief State neu van con nhieu hon 1 candidate
+        if len(belief) > 1:
+            old_size = len(belief)
+            belief = filter_belief(belief, dr, dc, actually_moved, grid, rows, cols)
+            new_size = len(belief)
+            eliminated = old_size - new_size
+
+            if new_size <= 1:
+                localized = True
+                if new_size == 1:
+                    located_at = next(iter(belief))
+                    if located_at != actual_pos:
+                        belief = {actual_pos}
+                else:
+                    belief = {actual_pos}
+        else:
+            belief = {actual_pos}
+            new_size = 1
+            eliminated = 0
+            localized = True
+
+        step_num += 1
+
+        move_result = "di duoc" if actually_moved else "bi chan (tuong)"
+        desc = (f"[Buoc {step_num}] Cung di {direction} ({move_result}). "
+                f"Belief con {new_size} vi tri.")
+
+        if localized:
+            dist_to_goal = abs(actual_pos[0] - goal[0]) + abs(actual_pos[1] - goal[1])
+            desc = f"[Buoc {step_num}] BFS dan duong -> {actual_pos}. Con {dist_to_goal} o den Goal."
+            if actual_pos == goal:
+                desc = f"[Buoc {step_num}] DA DEN GOAL tai {actual_pos}! Tong: {step_num} buoc."
+
+        # Tinh lai candidate paths moi cho buoc hien tai
+        candidate_paths = []
+        for cand in belief:
+            p = find_path_bfs(grid, cand, goal, rows, cols)
+            if p:
+                candidate_paths.append(p)
+
+        steps.append(Step(
+            step_num=step_num,
+            current=actual_pos,
+            frontier=list(belief),
+            visited=set(visited_pos),
+            path_so_far=list(full_path),
+            description=desc,
+            extra={
+                'belief_size': new_size,
+                'eliminated': eliminated,
+                'direction': direction,
+                'moved': actually_moved,
+                'localized': localized,
+                'phase': 'LOCALIZE' if not localized else 'NAVIGATE',
+                'known_cells': all_cells,
+                'candidate_paths': candidate_paths
+            }
+        ))
 
     elapsed = (time.time() - t0) * 1000
-    found   = (current == goal)
+    found = (actual_pos == goal)
 
     return PathResult(
         algo_name='BFS-PO',

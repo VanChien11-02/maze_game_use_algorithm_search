@@ -186,12 +186,22 @@ class Renderer:
     def _draw_maze_area(self, game: Game):
         map_surf = self.screen.subsurface((0, 0, C.MAP_W, C.MAP_H))
         known_cells = None
-        if (game.current_algo == 'BFS-PO'
-                and game.result and game.current_step):
-            known_cells = game.current_step.extra.get('known_cells')
+        selected_algo = self.get_selected_algo()
+        is_bfs_po = (game.current_algo == 'BFS-PO') or (game.playback_state == PlaybackState.IDLE and selected_algo == 'BFS-PO')
+
+        show_player = True
+        show_start = True
+
+        if is_bfs_po:
+            show_player = False
+            show_start = False
+            if game.result and game.current_step:
+                localized = game.current_step.extra.get('localized', False)
+                show_player = localized
+                show_start = localized
+                known_cells = game.current_step.extra.get('known_cells')
 
         ghost_pos = None
-        selected_algo = self.get_selected_algo()
         if game.current_algo == 'Minimax' or (game.playback_state == PlaybackState.IDLE and selected_algo == 'Minimax'):
             if game.result and game.current_step:
                 ghost_pos = game.current_step.extra.get('ghost')
@@ -207,9 +217,10 @@ class Renderer:
             map_surf,
             result=game.result,
             current_step=game.current_step_idx,
-            player_pos=game.player_pos,
+            player_pos=game.player_pos if show_player else None,
             known_cells=known_cells,
             ghost_pos=ghost_pos,
+            show_start=show_start
         )
         pygame.draw.rect(self.screen, C.HUD_BORDER, (0, 0, C.MAP_W, C.MAP_H), 2)
 
@@ -256,7 +267,7 @@ class Renderer:
         for label, val, col in [
             ("Start (S):", str(game.maze.start), C.START_COLOR),
             ("Goal  (G):", str(game.maze.goal),  C.GOAL_COLOR),
-            ("Kich thuoc:", f"{C.COLS} x {C.ROWS}", C.HUD_TEXT),
+            ("Kich thuoc:", f"{game.maze.cols} x {game.maze.rows}", C.HUD_TEXT),
         ]:
             _draw_kv(panel, self.f_label, self.f_value, label, val, col, pad, C.HUD_W, y)
             y += self.f_label.get_height() + 3
@@ -310,6 +321,21 @@ class Renderer:
                     ("Trang thai AI:", p_state, p_col),
                     ("Quai vat:", g_state, g_col),
                     ("Khoang cach:", f"{step.extra.get('dist_ghost', 0)} o (Aggro: <=6)", C.GOLD_COLOR)
+                ])
+
+            if game.current_algo == 'BFS-PO' and step:
+                phase = step.extra.get('phase', 'LOCALIZE')
+                bs = step.extra.get('belief_size', 0)
+                localized = step.extra.get('localized', False)
+                phase_col = (100, 255, 100) if phase == 'NAVIGATE' else (255, 180, 60)
+                bs_col = C.START_COLOR if bs == 1 else (255, 180, 60) if bs <= 5 else C.HUD_TEXT
+
+                rows.extend([
+                    ("__SEP__", "", C.HUD_BORDER),
+                    ("Giai doan:", phase, phase_col),
+                    ("Belief State:", f"{bs} vi tri", bs_col),
+                    ("Xac dinh:", "DA BIET" if localized else "CHUA BIET",
+                     C.START_COLOR if localized else (255, 100, 100)),
                 ])
 
             rows.extend([
