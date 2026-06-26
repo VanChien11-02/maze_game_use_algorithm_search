@@ -1,30 +1,24 @@
-# algorithms/steepest_hc.py — Nhóm 3: Local Search — Steepest Hill Climbing
+# algorithms/local/steepest_hc.py — Nhóm 3: Local Search — Steepest Hill Climbing
 """
-Steepest Hill Climbing — Leo đồi dốc nhất
-══════════════════════════════════════════
+Steepest Hill Climbing — Leo đồi dốc nhất (Bản thuần túy)
+==========================================================
 Nhóm: Local Search (Tìm kiếm cục bộ)
 Bài toán: Tìm đường Start→Goal bằng cách luôn chọn bước cải thiện
           NHIỀU NHẤT (dốc nhất) về phía Goal.
+          Nếu gặp Cực trị cục bộ (Local Minimum) hoặc Ngõ cụt, thuật toán
+          sẽ dừng lại và BÁO THẤT BẠI ngay lập tức (không quay lui, không vượt dốc).
 
 Trạng thái bắt đầu:
     - Vị trí: Start (r, c)
     - Hàm đánh giá: h(n) = Manhattan(n, Goal)  [muốn tối thiểu hóa]
 
 Các bước thực hiện:
-    1. Tại ô hiện tại, đánh giá TẤT CẢ ô kề hợp lệ
-    2. Tìm ô có h(n) NHỎ NHẤT (cải thiện nhiều nhất / dốc nhất)
-    3a. Nếu h(best_neighbor) < h(current) → DI CHUYỂN (leo dốc)
-    3b. Nếu bị kẹt (không cải thiện) → Ghi nhận BÍ
-        → Quay lui đến vị trí trước, thử hướng khác (thoát local optimum)
-    4. Lặp đến khi đến Goal hoặc hết bước
-
-Trạng thái kết thúc:
-    - Found: đến Goal
-    - Stuck: bị kẹt vĩnh viễn ở cực trị cục bộ
-
-Khác biệt với Greedy Best-First:
-    - Steepest HC: PHẢI cải thiện h mỗi bước, báo BÍ rõ ràng
-    - Greedy BFS:  dùng priority queue toàn cục, không bị bí
+    1. Tại ô hiện tại, đánh giá TẤT CẢ ô kề hợp lệ chưa đi qua.
+    2. Tìm ô kề tốt nhất có h(best_neighbor) nhỏ nhất.
+    3. Nếu h(best_neighbor) < h(current):
+       - Di chuyển sang ô kề tốt nhất đó (Leo đồi).
+    4. Nếu h(best_neighbor) >= h(current) hoặc không còn ô kề:
+       - AI rơi vào Cực trị cục bộ (hoặc ngõ cụt) -> Báo Thất Bại và DỪNG THUẬT TOÁN.
 """
 
 import time
@@ -44,18 +38,14 @@ def run_steepest_hc(grid: List[List[int]],
                     goal: Tuple[int,int],
                     rows: int, cols: int) -> PathResult:
     """
-    Steepest Hill Climbing với backtracking khi bị kẹt.
-    Dùng stack để quay lui: giống leo đồi nhưng khi bí → thử hướng khác.
+    Steepest Hill Climbing bản thuần túy: dừng và báo thất bại ngay khi gặp cực trị cục bộ.
     """
     t0 = time.time()
     steps: List[Step] = []
     step_num = 0
 
-    # Dùng stack chứa (position, tried_neighbors)
-    # để cho phép backtrack khi bị kẹt
-    stack = [(start, [])]    # (current_pos, neighbors_already_tried)
-    path  = [start]
-    path_set = {start}
+    current = start
+    path = [start]
     visited_all = {start}
 
     h_start = manhattan(start, goal)
@@ -66,115 +56,94 @@ def run_steepest_hc(grid: List[List[int]],
         visited={start},
         path_so_far=[start],
         description=(f"[Bắt đầu] Vị trí: {start} | h={h_start} | "
-                     f"Chiến lược: LUÔN chọn bước CẢI THIỆN DỐC NHẤT"),
+                     f"Chiến lược: Chỉ di chuyển nếu bước đi tiếp theo CẢI THIỆN dốc nhất"),
         extra={'h': h_start, 'mode': 'start'}
     ))
 
-    max_steps = 8000
+    max_steps = 1000
+    found = False
+    stuck = False
+
     for _ in range(max_steps):
-        if not stack:
-            break
-
-        current, tried = stack[-1]
-
         if current == goal:
+            found = True
             break
 
         r, c = current
         h_cur = manhattan(current, goal)
 
-        # Tìm tất cả ô kề hợp lệ chưa thử
+        # Tìm tất cả ô kề hợp lệ chưa nằm trên đường đi (path)
         candidates = []
         for dr, dc in DIRECTIONS:
             nr, nc = r+dr, c+dc
             npos = (nr, nc)
             if (0 <= nr < rows and 0 <= nc < cols
                     and grid[nr][nc] != 0
-                    and npos not in path_set
-                    and npos not in tried):
+                    and npos not in visited_all):
                 candidates.append((manhattan(npos, goal), npos))
 
-        # Sắp xếp: dốc nhất trước (h nhỏ nhất)
+        # Sắp xếp để lấy ô có h nhỏ nhất (tốt nhất)
         candidates.sort()
 
+        # Nếu không còn hướng nào đi được nữa
         if not candidates:
-            # Bị kẹt hoàn toàn tại đây → BACKTRACK
-            stack.pop()
-            if stack:
-                path.pop()
-                path_set.discard(current)
-                backtrack_to = stack[-1][0]
+            stuck = True
+            step_num += 1
+            steps.append(Step(
+                step_num=step_num,
+                current=current,
+                frontier=[],
+                visited=set(visited_all),
+                path_so_far=list(path),
+                description=(f"[Bước {step_num}] THẤT BẠI: Hết đường đi tại {current}! "
+                             f"Rơi vào ngõ cụt."),
+                is_backtrack=True,
+                extra={'h': h_cur, 'mode': 'stuck'}
+            ))
+            break
 
-                step_num += 1
-                steps.append(Step(
-                    step_num=step_num,
-                    current=backtrack_to,
-                    frontier=[],
-                    visited=set(visited_all),
-                    path_so_far=list(path),
-                    description=(f"[Bước {step_num}] BÍ hoàn toàn tại {current} → "
-                                 f"BACKTRACK về {backtrack_to} | "
-                                 f"Thử hướng khác"),
-                    is_backtrack=True,
-                    extra={'h': manhattan(backtrack_to, goal), 'mode': 'backtrack',
-                           'stuck_at': current}
-                ))
-            continue
-
-        # Lấy ô tốt nhất (dốc nhất)
         best_h, best_n = candidates[0]
 
-        # Đánh dấu ô này đã thử
-        tried.append(best_n)
-        visited_all.add(best_n)
-
+        # Kiểm tra xem có cải thiện heuristic (h) không
         if best_h < h_cur:
-            # Di chuyen duoc (cai thien)
-            stack.append((best_n, []))
+            # Di chuyển thành công
+            current = best_n
             path.append(best_n)
-            path_set.add(best_n)
+            visited_all.add(best_n)
 
             step_num += 1
-            all_h_str = ", ".join(f"h={h}" for h,_ in candidates[:3])
-            desc = (f"[Bước {step_num}] DI CHUYỂN → {best_n} | "
-                    f"h: {h_cur}→{best_h} (dốc nhất) | "
-                    f"Tất cả kề: [{all_h_str}] | "
-                    f"Độ sâu: {len(path)-1}")
+            all_h_str = ", ".join(f"h={h}" for h, _ in candidates[:3])
+            desc = (f"[Bước {step_num}] DI CHUYỂN -> {best_n} | "
+                    f"h: {h_cur} -> {best_h} (cải thiện) | "
+                    f"Tất cả kề: [{all_h_str}]")
             steps.append(Step(
                 step_num=step_num,
                 current=best_n,
-                frontier=[n for _,n in candidates[1:]],
+                frontier=[n for _, n in candidates[1:]],
                 visited=set(visited_all),
                 path_so_far=list(path),
                 description=desc,
                 is_backtrack=False,
-                extra={'h': best_h, 'mode': 'climb',
-                       'h_prev': h_cur, 'improvement': h_cur - best_h}
+                extra={'h': best_h, 'mode': 'climb', 'h_prev': h_cur}
             ))
         else:
-            # Khong cai thien - bi cuc bo
-            stack.append((best_n, []))
-            path.append(best_n)
-            path_set.add(best_n)
-
+            # Bị kẹt ở cực trị cục bộ (best_h >= h_cur) -> Dừng và báo thất bại luôn!
+            stuck = True
             step_num += 1
             steps.append(Step(
                 step_num=step_num,
-                current=best_n,
-                frontier=[n for _,n in candidates[1:]],
+                current=current,
+                frontier=[n for _, n in candidates],
                 visited=set(visited_all),
                 path_so_far=list(path),
-                description=(f"[Buoc {step_num}] CUC TRI CUC BO tai {current} | "
-                             f"h_cur={h_cur}, h_best={best_h} (khong cai thien!) | "
-                             f"Buoc sang {best_n}"),
+                description=(f"[Bước {step_num}] THẤT BẠI: Dính CỰC TRỊ CỤC BỘ tại {current}! "
+                             f"h hiện tại ({h_cur}) <= h tốt nhất của ô kề ({best_h})."),
                 is_backtrack=True,
-                extra={'h': best_h, 'mode': 'stuck',
-                       'h_prev': h_cur, 'delta': best_h - h_cur}
+                extra={'h': h_cur, 'mode': 'stuck'}
             ))
+            break
 
     elapsed = (time.time() - t0) * 1000
-    current_final = stack[-1][0] if stack else path[-1] if path else start
-    found = (current_final == goal)
 
     return PathResult(
         algo_name='Steepest HC',

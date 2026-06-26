@@ -204,6 +204,13 @@ ALGO_GROUPS = {
             'Alpha-Beta': 'Alpha-Beta Pruning Monster',
         },
     },
+    'Adversarial Search': {
+        'vi_name': 'Tìm kiếm đối kháng',
+        'color':   (210,  50, 100),
+        'algorithms': {
+            'Minimax': 'Minimax Algorithm',
+        },
+    },
 }
 
 # Danh sách nhóm (giữ thứ tự)
