@@ -77,8 +77,7 @@ def run_steepest_hc(grid: List[List[int]],
         for dr, dc in DIRECTIONS:
             nr, nc = r+dr, c+dc
             npos = (nr, nc)
-            if (0 <= nr < rows and 0 <= nc < cols
-                    and grid[nr][nc] != 0
+            if (rows > nr >= 0 != grid[nr][nc] and 0 <= nc < cols
                     and npos not in visited_all):
                 candidates.append((manhattan(npos, goal), npos))
 
@@ -105,7 +104,7 @@ def run_steepest_hc(grid: List[List[int]],
         best_h, best_n = candidates[0]
 
         # Kiểm tra xem có cải thiện heuristic (h) không
-        if best_h < h_cur:
+        if best_h <= h_cur:
             # Di chuyển thành công
             current = best_n
             path.append(best_n)

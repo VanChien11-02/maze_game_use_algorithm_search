@@ -62,6 +62,7 @@ class Game:
 
     def new_maze(self):
         self.seed = random.randint(0, 99999)
+        self._original_goal = None
         self._init_maze()
         self.player_pos = self.maze.start
         self.player_trail = {self.player_pos}
@@ -74,6 +75,7 @@ class Game:
             return
         C.set_grid_size(size)
         self.seed = random.randint(0, 99999)
+        self._original_goal = None
         self._init_maze()
         self.player_pos = self.maze.start
         self.player_trail = {self.player_pos}
@@ -86,6 +88,7 @@ class Game:
             return
         C.set_difficulty(name)
         self.seed = random.randint(0, 99999)
+        self._original_goal = None
         self._init_maze()
         self.player_pos = self.maze.start
         self.player_trail = {self.player_pos}
@@ -97,6 +100,34 @@ class Game:
         if algo_name not in ALGO_RUNNERS:
             self.message = f"Thuật toán '{algo_name}' không tồn tại!"
             return
+
+        # Khôi phục Goal nguyên bản nếu trước đó đã đổi cho BFS-PO
+        if hasattr(self, '_original_goal') and self._original_goal is not None:
+            self.maze.goal = self._original_goal
+            self._original_goal = None
+
+        if algo_name == 'BFS-PO':
+            # Lưu lại Goal cũ
+            self._original_goal = self.maze.goal
+            
+            # Chọn ngẫu nhiên một trong 4 góc (trừ các viền ngoài 0 và 29)
+            corners = [
+                (1, 1),
+                (1, self.maze.cols - 2),
+                (self.maze.rows - 2, 1),
+                (self.maze.rows - 2, self.maze.cols - 2)
+            ]
+            selected_corner = random.choice(corners)
+            r_g, c_g = selected_corner
+            
+            # Đảm bảo góc này và các ô lân cận của nó là đường đi thông suốt
+            self.maze.grid[r_g][c_g] = 1
+            for dr, dc in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                nr, nc = r_g + dr, c_g + dc
+                if 0 < nr < self.maze.rows - 1 and 0 < nc < self.maze.cols - 1:
+                    self.maze.grid[nr][nc] = 1
+            
+            self.maze.goal = selected_corner
 
         self.current_algo     = algo_name
         self.result           = self._execute_algorithm(algo_name)

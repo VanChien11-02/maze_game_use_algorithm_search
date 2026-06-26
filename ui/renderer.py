@@ -271,15 +271,29 @@ class Renderer:
     def _draw_maze_area(self, game: Game):
         map_surf = self.screen.subsurface((0, 0, C.MAP_W, C.MAP_H))
         known_cells = None
-        if game.current_algo == 'BFS-PO' and game.result and game.current_step:
-            known_cells = game.current_step.extra.get('known_cells')
+        selected_algo = self.get_selected_algo()
+        is_bfs_po = (game.current_algo == 'BFS-PO') or (game.playback_state == PlaybackState.IDLE and selected_algo == 'BFS-PO')
+
+        show_player = True
+        show_start = True
+
+        if is_bfs_po:
+            show_player = False
+            show_start = False
+            if game.result and game.current_step:
+                localized = game.current_step.extra.get('localized', False)
+                show_player = localized
+                show_start = localized
+                known_cells = game.current_step.extra.get('known_cells')
+
         game.maze.draw(
             map_surf,
             result=game.result,
             current_step=game.current_step_idx,
-            player_pos=game.player_pos,
+            player_pos=game.player_pos if show_player else None,
             player_trail=game.player_trail,
             known_cells=known_cells,
+            show_start=show_start
         )
         if game.race_mode and game.compare_result:
             game.maze.draw_race_agent(

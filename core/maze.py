@@ -118,7 +118,8 @@ class Maze:
              current_step: int = 0,
              player_pos: Tuple[int, int] = None,
              player_trail: Set[Tuple[int, int]] = None,
-             known_cells: Set[Tuple[int, int]] = None):
+             known_cells: Set[Tuple[int, int]] = None,
+             show_start: bool = True):
         ts = C.TILE_SIZE
         self._ensure_tile_cache()
         self._draw_map_backdrop(surface)
@@ -163,20 +164,29 @@ class Maze:
             monster_pos = extra.get("monster_pos", extra.get("ghost"))
 
         actor_pos = player_pos
+        localized = False
+        is_bfs_po = (result and result.algo_name == 'BFS-PO')
+        
         if result and result.steps and current_step > 0:
             step_idx = min(current_step - 1, len(result.steps) - 1)
             if result.steps[step_idx].current:
                 actor_pos = result.steps[step_idx].current
+            localized = result.steps[step_idx].extra.get('localized', False)
 
         # 3. Start & treasure markers
-        self._draw_start_goal(surface, ts, treasure_open=(actor_pos == self.goal))
+        actual_show_start = show_start
+        if is_bfs_po and not localized:
+            actual_show_start = False
+
+        self._draw_start_goal(surface, ts, treasure_open=(actor_pos == self.goal), show_start=actual_show_start)
 
         if monster_pos:
             monster_alert = actor_pos == monster_pos
             if not monster_alert:
                 self._draw_monster(surface, monster_pos, ts, False)
 
-        if actor_pos:
+        # Only draw player if not BFS-PO or if localized is True
+        if actor_pos and (not is_bfs_po or localized):
             self._draw_player(surface, actor_pos, ts)
             self._draw_next_direction_arrow_for_step(
                 surface,
@@ -582,6 +592,31 @@ class Maze:
         is_done = current_step >= len(result.steps)
         pulse = int(45 + 35 * abs(math.sin(self._tick * 5)))
 
+        is_bfs_po = (result.algo_name == 'BFS-PO')
+
+        if is_bfs_po:
+            # Đối với BFS-PO: Chỉ vẽ các chấm tròn cam (candidates) và đường đi của chúng đến đích
+            candidate_paths = step.extra.get('candidate_paths', [])
+            if candidate_paths:
+                temp_surf = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
+                for path in candidate_paths:
+                    if len(path) >= 2:
+                        pts = [(p[1]*ts + ts//2, p[0]*ts + ts//2) for p in path]
+                        # Vẽ đường màu cam chỉ hướng đến đích
+                        pygame.draw.lines(temp_surf, (255, 140, 0, 110), False, pts, 2)
+                surface.blit(temp_surf, (0, 0))
+
+            # Vẽ các chấm cam đại diện cho các trạng thái tin tưởng trong Belief State
+            for pos in step.frontier:
+                r, c = pos
+                cx, cy = c*ts + ts//2, r*ts + ts//2
+                glow = pygame.Surface((ts, ts), pygame.SRCALPHA)
+                pygame.draw.circle(glow, (255, 140, 0, 100), (ts//2, ts//2), ts//2 - 2)
+                surface.blit(glow, (c*ts, r*ts))
+                pygame.draw.circle(surface, (255, 165, 0), (cx, cy), ts//2 - 5)
+                pygame.draw.circle(surface, C.WHITE, (cx, cy), ts//2 - 5, 1)
+            return
+
         visited_list = list(step.visited)
         total_v = max(1, len(visited_list) - 1)
         for i, pos in enumerate(visited_list):
@@ -896,14 +931,15 @@ class Maze:
 
     # ── Start / Goal ─────────────────────────────────────────
 
-    def _draw_start_goal(self, surface: pygame.Surface, ts: int, treasure_open: bool = False):
+    def _draw_start_goal(self, surface: pygame.Surface, ts: int, treasure_open: bool = False, show_start: bool = True):
         """Start = animated portal, Goal = glowing trophy/star marker."""
         glow_a = int(120 + math.sin(self._tick * 3.2) * 50)
         font = self._get_marker_font()
 
-        sr, sc = self.start
-        sx, sy = sc * ts + ts // 2, sr * ts + ts // 2
-        self._draw_portal(surface, sx, sy, ts, C.START_COLOR, C.START_GLOW, label=None)
+        if show_start:
+            sr, sc = self.start
+            sx, sy = sc * ts + ts // 2, sr * ts + ts // 2
+            self._draw_portal(surface, sx, sy, ts, C.START_COLOR, C.START_GLOW, label=None)
 
         gr, gc = self.goal
         gx, gy = gc * ts + ts // 2, gr * ts + ts // 2

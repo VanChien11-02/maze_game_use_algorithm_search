@@ -56,42 +56,33 @@ def generate_maze(cols: int, rows: int, seed: int = None) -> List[List[int]]:
 def find_start_exit(grid: List[List[int]], rows: int, cols: int
                     ) -> Tuple[Tuple[int,int], Tuple[int,int]]:
     """
-    Tìm ô sàn đầu tiên (góc trên-trái) làm Start,
-    và ô sàn xa nhất (BFS) làm Goal.
+    Chọn ngẫu nhiên điểm Start và Goal từ tập các ô sàn,
+    đảm bảo chúng cách nhau ít nhất một khoảng cách Manhattan nhất định.
     """
-    start = None
+    floors = []
     for r in range(rows):
         for c in range(cols):
-            if grid[r][c] == 1:
-                start = (r, c)
-                break
-        if start:
-            break
-    if not start:
-        start = (1, 1)
+            if grid[r][c] != 0:
+                floors.append((r, c))
 
-    # BFS để tìm ô xa nhất từ start
-    queue = deque([(start, 0)])
-    visited = {start: 0}
-    directions = [(-1,0),(1,0),(0,-1),(0,1)]
-    farthest = start
-    max_dist = 0
+    if len(floors) < 2:
+        return (1, 1), (rows-2, cols-2)
 
-    while queue:
-        pos, dist = queue.popleft()
-        if dist > max_dist:
-            max_dist = dist
-            farthest = pos
-        r, c = pos
-        for dr, dc in directions:
-            nr, nc = r+dr, c+dc
-            npos = (nr, nc)
-            if (0 <= nr < rows and 0 <= nc < cols
-                    and grid[nr][nc] != 0 and npos not in visited):
-                visited[npos] = dist + 1
-                queue.append((npos, dist + 1))
+    # Đảm bảo khoảng cách Manhattan tối thiểu giữa Start và Goal
+    min_dist = max(10, min(rows, cols) * 2 // 3)
 
-    return start, farthest
+    for _ in range(300):
+        start = random.choice(floors)
+        goal = random.choice(floors)
+        if start != goal and abs(start[0] - goal[0]) + abs(start[1] - goal[1]) >= min_dist:
+            return start, goal
+
+    # Fallback
+    start = random.choice(floors)
+    goal = random.choice(floors)
+    while start == goal:
+        goal = random.choice(floors)
+    return start, goal
 
 
 def add_extra_passages(grid: List[List[int]], rows: int, cols: int,
