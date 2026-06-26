@@ -61,7 +61,7 @@ python -u ".\maze_game_use_algorithm_search\main.py"
 | Local Search | `Steepest HC`, `SA` | Tìm kiếm cục bộ |
 | Complex Environment | `BFS-PO`, `AND-OR` | Môi trường phức tạp hoặc quan sát không đầy đủ |
 | CSP | `Backtrack`, `Forward Checking` | Mô hình hóa đường đi như bài toán ràng buộc |
-| Adversarial Search | `Alpha-Beta` | Player đối kháng với monster |
+| Adversarial Search | `Alpha-Beta`, `Minimax` | Player đối kháng với monster |
 
 ## 5. Điều Khiển Chính
 

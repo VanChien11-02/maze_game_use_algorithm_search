@@ -38,6 +38,7 @@ from algorithms.complex_env.and_or_graph_search import run_and_or_graph_search
 from algorithms.csp.backtracking    import run_backtracking
 from algorithms.csp.forward_checking import run_forward_checking
 from algorithms.adversarial.alpha_beta import run_alpha_beta
+from algorithms.adversarial.minimax import run_minimax
 
 # Map: key (khop voi config.ALGO_GROUPS) -> ham chay
 ALGO_RUNNERS = {
@@ -52,4 +53,5 @@ ALGO_RUNNERS = {
     'Backtrack':   run_backtracking,
     'Forward Checking': run_forward_checking,
     'Alpha-Beta':  run_alpha_beta,
+    'Minimax':     run_minimax,
 }

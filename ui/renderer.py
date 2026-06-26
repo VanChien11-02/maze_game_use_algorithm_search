@@ -490,7 +490,16 @@ class Renderer:
                     f"{turn}/{status}{loop} | d={extra.get('depth', '--')} | "
                     f"score={score:.1f} | nodes={nodes} | "
                     f"prunes={prunes} | cache={cache_hits} | "
-                    f"Monster={extra.get('monster_pos')}"
+                    f"Monster={extra.get('monster_pos', extra.get('ghost'))}"
+                )
+            elif game.current_algo == "Minimax":
+                extra = step.extra
+                desc = (
+                    f"P={extra.get('player_state', '--')} | "
+                    f"M={extra.get('ghost_state', '--')} | "
+                    f"distM={extra.get('dist_ghost', '--')} | "
+                    f"distGoal={extra.get('dist_goal', '--')} | "
+                    f"Monster={extra.get('monster_pos', extra.get('ghost'))}"
                 )
             elif game.current_algo == "Forward Checking":
                 extra = step.extra
@@ -654,10 +663,14 @@ class Renderer:
         _draw_card(self.screen, rect)
         pygame.draw.rect(self.screen, C.VIZ_PATH if game.result.found else C.VIZ_BACKTRACK, rect, 2, border_radius=14)
 
-        caught = (
-            game.current_algo == 'Alpha-Beta'
-            and game.result.steps
-            and game.result.steps[-1].extra.get('caught')
+        last_extra = game.result.steps[-1].extra if game.result.steps else {}
+        caught = bool(
+            last_extra.get('caught')
+            or (
+                game.current_algo == 'Minimax'
+                and not game.result.found
+                and last_extra.get('dist_ghost') == 0
+            )
         )
         title = "TREASURE FOUND" if game.result.found else "CAUGHT" if caught else "NO PATH FOUND"
         color = C.GOAL_COLOR if game.result.found else C.VIZ_BACKTRACK

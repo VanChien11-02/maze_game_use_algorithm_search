@@ -269,9 +269,15 @@ class Game:
                         f"pattern={pattern} | Visited: {self.result.total_visited} o"
                     )
                     self.message_color = C.HUD_WARN
-                elif self.current_algo == "Alpha-Beta" and last_extra.get("caught"):
+                elif (
+                    last_extra.get("caught")
+                    or (
+                        self.current_algo == "Minimax"
+                        and last_extra.get("dist_ghost") == 0
+                    )
+                ):
                     self.message = (
-                        "[Alpha-Beta] Monster thắng! Người chơi bị bắt | "
+                        f"[{self.current_algo}] Monster thắng! Người chơi bị bắt | "
                         f"Visited: {self.result.total_visited} ô"
                     )
                     self.message_color = C.VIZ_BACKTRACK

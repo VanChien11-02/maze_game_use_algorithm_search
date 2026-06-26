@@ -159,7 +159,8 @@ class Maze:
 
         if result and result.steps and current_step > 0:
             step_idx = min(current_step - 1, len(result.steps) - 1)
-            monster_pos = result.steps[step_idx].extra.get("monster_pos")
+            extra = result.steps[step_idx].extra
+            monster_pos = extra.get("monster_pos", extra.get("ghost"))
 
         actor_pos = player_pos
         if result and result.steps and current_step > 0:

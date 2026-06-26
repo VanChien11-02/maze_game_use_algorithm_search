@@ -202,6 +202,7 @@ ALGO_GROUPS = {
         'color':   (225,  80, 115),
         'algorithms': {
             'Alpha-Beta': 'Alpha-Beta Pruning Monster',
+            'Minimax': 'Minimax Search Monster',
         },
     },
 }
