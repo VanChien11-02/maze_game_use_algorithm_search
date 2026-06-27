@@ -50,6 +50,17 @@ def generate_maze(cols: int, rows: int, seed: int = None) -> List[List[int]]:
         for c in range(min(gc, cols)):
             final[r][c] = grid[r][c]
 
+    # Nếu hàng hoặc cột chẵn, nối ô sàn sát cạnh vào phần bổ sung để tránh 2 tường ở bên phải và dưới
+    if cols % 2 == 0:
+        for r in range(1, rows - 1):
+            if final[r][cols - 3] == 1:
+                final[r][cols - 2] = 1
+                
+    if rows % 2 == 0:
+        for c in range(1, cols - 1):
+            if final[rows - 3][c] == 1:
+                final[rows - 2][c] = 1
+
     return final
 
 
