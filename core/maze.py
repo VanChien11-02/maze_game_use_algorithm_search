@@ -119,8 +119,20 @@ class Maze:
              player_pos: Tuple[int, int] = None,
              player_trail: Set[Tuple[int, int]] = None,
              known_cells: Set[Tuple[int, int]] = None,
-             show_start: bool = True):
+             show_start: bool = True,
+             is_bfs_po: bool = False):
         ts = C.TILE_SIZE
+        
+        # Precompute is_bfs_po, localized, actor_pos
+        is_bfs_po = is_bfs_po or (result and result.algo_name == 'BFS-PO')
+        localized = False
+        actor_pos = player_pos
+        if result and result.steps and current_step > 0:
+            step_idx = min(current_step - 1, len(result.steps) - 1)
+            if result.steps[step_idx].current:
+                actor_pos = result.steps[step_idx].current
+            localized = result.steps[step_idx].extra.get('localized', False)
+
         self._ensure_tile_cache()
         self._draw_map_backdrop(surface)
 
@@ -137,23 +149,28 @@ class Maze:
 
         # viền lưới mờ
         self._draw_soft_grid(surface, ts)
-        self._draw_player_trail(surface, player_trail, known_cells)
+        if not is_bfs_po or localized:
+            self._draw_player_trail(surface, player_trail, known_cells)
 
         # 2. Algorithm visualization overlay
         if result and result.steps and current_step > 0:
             step_idx = min(current_step - 1, len(result.steps) - 1)
-            if not C.SHOW_ALGO_TRACE:
-                self._draw_algorithm_trail(
-                    surface,
-                    result.steps[step_idx],
-                    result,
-                    current_step,
-                    known_cells,
-                )
-            if C.SHOW_ALGO_TRACE:
+            if is_bfs_po:
+                # For BFS-PO, always draw the belief state candidates and their paths, and nothing else
                 self._draw_viz(surface, result.steps[step_idx], result, current_step, ts)
-            elif C.SHOW_ROUTE_LINE:
-                self._draw_route_line(surface, result.steps[step_idx], result, current_step)
+            else:
+                if not C.SHOW_ALGO_TRACE:
+                    self._draw_algorithm_trail(
+                        surface,
+                        result.steps[step_idx],
+                        result,
+                        current_step,
+                        known_cells,
+                    )
+                if C.SHOW_ALGO_TRACE:
+                    self._draw_viz(surface, result.steps[step_idx], result, current_step, ts)
+                elif C.SHOW_ROUTE_LINE:
+                    self._draw_route_line(surface, result.steps[step_idx], result, current_step)
 
         monster_pos = None
         monster_alert = False
@@ -163,22 +180,12 @@ class Maze:
             extra = result.steps[step_idx].extra
             monster_pos = extra.get("monster_pos", extra.get("ghost"))
 
-        actor_pos = player_pos
-        localized = False
-        is_bfs_po = (result and result.algo_name == 'BFS-PO')
-        
-        if result and result.steps and current_step > 0:
-            step_idx = min(current_step - 1, len(result.steps) - 1)
-            if result.steps[step_idx].current:
-                actor_pos = result.steps[step_idx].current
-            localized = result.steps[step_idx].extra.get('localized', False)
-
         # 3. Start & treasure markers
         actual_show_start = show_start
-        if is_bfs_po and not localized:
+        if is_bfs_po:
             actual_show_start = False
 
-        self._draw_start_goal(surface, ts, treasure_open=(actor_pos == self.goal), show_start=actual_show_start)
+        self._draw_start_goal(surface, ts, treasure_open=(actor_pos == self.goal), show_start=actual_show_start, is_bfs_po=is_bfs_po)
 
         if monster_pos:
             monster_alert = actor_pos == monster_pos
@@ -931,8 +938,8 @@ class Maze:
 
     # ── Start / Goal ─────────────────────────────────────────
 
-    def _draw_start_goal(self, surface: pygame.Surface, ts: int, treasure_open: bool = False, show_start: bool = True):
-        """Start = animated portal, Goal = glowing trophy/star marker."""
+    def _draw_start_goal(self, surface: pygame.Surface, ts: int, treasure_open: bool = False, show_start: bool = True, is_bfs_po: bool = False):
+        """Start = animated portal, Goal = glowing trophy/star marker or Yellow 'G' Circle for BFS-PO."""
         glow_a = int(120 + math.sin(self._tick * 3.2) * 50)
         font = self._get_marker_font()
 
@@ -943,11 +950,28 @@ class Maze:
 
         gr, gc = self.goal
         gx, gy = gc * ts + ts // 2, gr * ts + ts // 2
-        goal_s = pygame.Surface((ts * 2, ts * 2), pygame.SRCALPHA)
-        pygame.draw.circle(goal_s, (*C.GOAL_GLOW, min(230, glow_a)), (ts, ts), max(8, ts // 2 + 7))
-        pygame.draw.circle(goal_s, (*C.GOAL_COLOR, 60), (ts, ts), max(5, ts // 2 - 1), 2)
-        surface.blit(goal_s, (gx - ts, gy - ts))
-        self._draw_pixel_trophy(surface, gc * ts, gr * ts, ts, opened=treasure_open)
+        
+        if is_bfs_po:
+            # Draw yellow glowing circle with black 'G' in the center
+            goal_s = pygame.Surface((ts * 2, ts * 2), pygame.SRCALPHA)
+            gold_color = (255, 215, 0)
+            pygame.draw.circle(goal_s, (*gold_color, min(230, glow_a)), (ts, ts), max(8, ts // 2 + 7))
+            pygame.draw.circle(goal_s, (*gold_color, 60), (ts, ts), max(5, ts // 2 - 1), 2)
+            surface.blit(goal_s, (gx - ts, gy - ts))
+            
+            # Inner circle
+            pygame.draw.circle(surface, (255, 215, 0), (gx, gy), ts // 2 - 2)
+            pygame.draw.circle(surface, C.WHITE, (gx, gy), ts // 2 - 2, 2)
+            
+            # Letter 'G'
+            lbl = font.render('G', True, C.BLACK)
+            surface.blit(lbl, (gx - lbl.get_width() // 2, gy - lbl.get_height() // 2))
+        else:
+            goal_s = pygame.Surface((ts * 2, ts * 2), pygame.SRCALPHA)
+            pygame.draw.circle(goal_s, (*C.GOAL_GLOW, min(230, glow_a)), (ts, ts), max(8, ts // 2 + 7))
+            pygame.draw.circle(goal_s, (*C.GOAL_COLOR, 60), (ts, ts), max(5, ts // 2 - 1), 2)
+            surface.blit(goal_s, (gx - ts, gy - ts))
+            self._draw_pixel_trophy(surface, gc * ts, gr * ts, ts, opened=treasure_open)
 
     def _draw_portal(self, surface, cx: int, cy: int, ts: int, color, glow, label='S'):
         pulse = abs(math.sin(self._tick * 4.5))

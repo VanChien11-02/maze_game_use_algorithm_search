@@ -293,7 +293,8 @@ class Renderer:
             player_pos=game.player_pos if show_player else None,
             player_trail=game.player_trail,
             known_cells=known_cells,
-            show_start=show_start
+            show_start=show_start,
+            is_bfs_po=is_bfs_po
         )
         if game.race_mode and game.compare_result:
             game.maze.draw_race_agent(
