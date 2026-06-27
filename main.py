@@ -17,6 +17,7 @@ AI Maze Solver — Mê Cung AI 30×30
   [H]         : Đổi theme
   [M]         : Bật/tắt Race Mode khi có thuật toán so sánh
   [P]         : Bat/tat preview duong sap di
+  [X]         : Bật/tắt thông báo kết quả (Treasure Found)
   [↑↓]        : Di chuyển player lên/xuống
   [A/D]       : Di chuyển player trái/phải
   [ESC]       : Về menu
@@ -99,6 +100,8 @@ def run_game(screen: pygame.Surface) -> str:
                     game.toggle_preview()
                 elif key == pygame.K_y:
                     game.cycle_alpha_beta_depth()
+                elif key == pygame.K_x:
+                    game.toggle_victory_popup()
                 # Di chuyển player
                 elif key == pygame.K_UP    or key == pygame.K_w:
                     game.try_move_player(-1, 0)

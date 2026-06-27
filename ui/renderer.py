@@ -678,7 +678,7 @@ class Renderer:
 
 
     def _draw_victory_overlay(self, game: Game):
-        if game.playback_state != PlaybackState.DONE or not game.result:
+        if game.playback_state != PlaybackState.DONE or not game.result or not getattr(game, 'show_victory_popup', True):
             return
         # Cinematic translucent overlay only when algorithm finished
         overlay = pygame.Surface((C.MAP_W, C.MAP_H), pygame.SRCALPHA)

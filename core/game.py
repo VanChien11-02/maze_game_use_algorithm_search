@@ -48,6 +48,7 @@ class Game:
         self.race_mode = False
         self.compare_step_idx = 0
         self._compare_step_timer = 0.0
+        self.show_victory_popup = True
 
     def _init_maze(self):
         difficulty = C.current_difficulty_settings()
@@ -149,6 +150,12 @@ class Game:
         else:
             self.message = "Race Mode OFF: so sánh số liệu bình thường"
             self.message_color = C.HUD_TEXT
+
+    def toggle_victory_popup(self):
+        self.show_victory_popup = not self.show_victory_popup
+        state = "ON" if self.show_victory_popup else "OFF"
+        self.message = f"Thông báo kết quả: {state}"
+        self.message_color = C.GOAL_COLOR if self.show_victory_popup else C.HUD_MUTED
 
     def toggle_preview(self):
         C.SHOW_UPCOMING_PREVIEW = not C.SHOW_UPCOMING_PREVIEW
