@@ -3,7 +3,7 @@
 # ── Cửa sổ & Lưới ──────────────────────────────────────────
 import os
 
-GRID_OPTIONS = [15, 20, 30, 40]
+GRID_OPTIONS = [10, 15, 20, 30, 40]
 GRID_SIZE  = 30
 COLS       = GRID_SIZE
 ROWS       = GRID_SIZE

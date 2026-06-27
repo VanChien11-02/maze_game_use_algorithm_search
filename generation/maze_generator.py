@@ -69,7 +69,7 @@ def find_start_exit(grid: List[List[int]], rows: int, cols: int
         return (1, 1), (rows-2, cols-2)
 
     # Đảm bảo khoảng cách Manhattan tối thiểu giữa Start và Goal
-    min_dist = max(10, min(rows, cols) * 2 // 3)
+    min_dist = max(5, min(rows, cols) * 2 // 3)
 
     for _ in range(300):
         start = random.choice(floors)
