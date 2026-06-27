@@ -481,13 +481,28 @@ class Renderer:
         _draw_card(panel, rect)
         _draw_section(panel, self.f_section, "Log duong di truc quan", pad, 558)
 
+        old_clip = panel.get_clip()
+        panel.set_clip(rect.inflate(-6, -6))
+
         result = game.result
         step = game.current_step
         if result and step:
             path_log = result.path if result.found and game.playback_state == PlaybackState.DONE else step.path_so_far
             status = "FINAL PATH" if game.playback_state == PlaybackState.DONE and result.found else "LIVE TRACE"
             _draw_pill(panel, self.f_tiny, status, C.HUD_W - pad - 108, 556, 108, C.VIZ_PATH)
-            y = _draw_path_log(panel, self.f_log, path_log, pad, 580, C.HUD_W - pad * 2, 614)
+            desc_h = self.f_tiny.get_height()
+            desc_bottom = rect.bottom - 8
+            path_bottom = desc_bottom - desc_h - 5
+            y = _draw_path_log(
+                panel,
+                self.f_log,
+                path_log,
+                pad,
+                580,
+                C.HUD_W - pad * 2,
+                path_bottom,
+                show_summary=False,
+            )
             desc = step.description or ""
 
             if game.current_algo == "Alpha-Beta":
@@ -528,19 +543,22 @@ class Renderer:
                     f"h={h} | {extra.get('reason', '')}"
                 )
 
-            _draw_wrapped_limited(
-                panel,
-                self.f_tiny,
-                desc,
-                pad,
-                C.HUD_W - pad * 2,
-                y + 3,
-                C.HUD_MUTED,
-                max_lines=1
-            )
+            desc_y = y + 3
+            if desc and desc_y + desc_h <= desc_bottom:
+                _draw_wrapped_limited(
+                    panel,
+                    self.f_tiny,
+                    desc,
+                    pad,
+                    C.HUD_W - pad * 2,
+                    desc_y,
+                    C.HUD_MUTED,
+                    max_lines=1
+                )
         else:
             text = self.f_tiny.render("Chua co log. Hay chon thuat toan va nhan PLAY.", True, C.HUD_MUTED)
             panel.blit(text, (pad, 582))
+        panel.set_clip(old_clip)
 
     def _draw_progress_card(self, panel: pygame.Surface, game: Game, pad: int):
         rect = pygame.Rect(pad - 2, 634, C.HUD_W - pad * 2 + 4, 36)
@@ -979,7 +997,7 @@ def _draw_wrapped_limited(surface, font, text, x, max_w, y, color, max_lines=2) 
     return y
 
 
-def _draw_path_log(surface, font, path, x, y, max_w, max_y) -> int:
+def _draw_path_log(surface, font, path, x, y, max_w, max_y, show_summary=True) -> int:
     """Log toa do dang chip: S -> step gan nhat -> Current, de nhin hon chuoi dai."""
     if not path:
         s = font.render("Chua co toa do duong di.", True, C.HUD_MUTED)
@@ -1006,10 +1024,11 @@ def _draw_path_log(surface, font, path, x, y, max_w, max_y) -> int:
         tw = font.render(text, True, color).get_width()
         w = min(tw + 16, max_w)
         if cx + w > x + max_w:
-            cx = x
-            cy += line_h
-            if cy + line_h > max_y:
+            next_y = cy + line_h
+            if next_y + line_h > max_y:
                 break
+            cx = x
+            cy = next_y
         rect = pygame.Rect(cx, cy, w, line_h - 3)
         pygame.draw.rect(surface, (16, 25, 43), rect, border_radius=6)
         pygame.draw.rect(surface, color, rect, 1, border_radius=6)
@@ -1021,6 +1040,9 @@ def _draw_path_log(surface, font, path, x, y, max_w, max_y) -> int:
             arrow = font.render("→", True, C.HUD_MUTED)
             surface.blit(arrow, (cx, cy + 4))
             cx += arrow.get_width() + 7
+
+    if not show_summary:
+        return cy + line_h
 
     # dong tong ket nho
     summary = f"Tong node tren trace: {len(path)} | Current: {path[-1]}"
