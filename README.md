@@ -337,3 +337,12 @@ python -u "D:\HCMUTE\trí tuệ nhân tạo\final project\maze_game_use_algorith
 - Dùng phím `→` để đi từng bước khi cần giải thích chi tiết.
 - Với CSP Forward Checking, chú ý các dấu X đỏ vì đó là phần thể hiện domain bị loại.
 - Với Alpha-Beta, chú ý log `MAX/MIN`, `nodes`, `prunes`, `cache` để giải thích cơ chế cắt nhánh.
+
+## 17. Ví dụ chạy Demo BFS, DFS
+BFS
+
+<img width="453" height="452" alt="image" src="https://github.com/user-attachments/assets/b36b33c2-1f62-472f-9744-0051500fb29b" />
+
+DFS
+
+<img width="453" height="448" alt="image" src="https://github.com/user-attachments/assets/3db343f5-51d7-4a73-9b9b-40a8d4bd18e7" />
