@@ -57,14 +57,17 @@ def _actions(grid: List[List[int]], state: State,
     return legal
 
 
-def _results(state: State, action: Action) -> List[State]:
+def _results(grid: List[List[int]], state: State, action: Action,
+             rows: int, cols: int) -> List[State]:
     for name, (dr, dc) in ACTIONS:
         if name == action:
-            return [(state[0] + dr, state[1] + dc)]
+            nxt = (state[0] + dr, state[1] + dc)
+            return [nxt] if _is_walkable(grid, nxt, rows, cols) else []
     return []
 
 
-def _plan_to_path(plan: Plan, start: State, goal: State) -> List[State]:
+def _plan_to_path(plan: Plan, grid: List[List[int]], start: State,
+                  goal: State, rows: int, cols: int) -> List[State]:
     if start == goal:
         return [start]
     if plan is None or plan == []:
@@ -81,7 +84,7 @@ def _plan_to_path(plan: Plan, start: State, goal: State) -> List[State]:
         except (TypeError, ValueError):
             return []
 
-        result_states = _results(current, action)
+        result_states = _results(grid, current, action, rows, cols)
         if not result_states:
             return []
 
@@ -157,13 +160,6 @@ def run_and_or_graph_search(grid: List[List[int]],
                 return None
             plans[state] = plan_s
 
-        add_step(
-            display_state,
-            states,
-            path,
-            f"[AND_SEARCH] all result states solved -> return plans",
-            extra={'mode': 'and_success', 'states': list(states)},
-        )
         return plans
 
     def or_search(state: State, path: List[State]) -> Optional[Plan]:
@@ -207,11 +203,7 @@ def run_and_or_graph_search(grid: List[List[int]],
             return None
 
         for action, target in legal_actions:
-            result_states = _results(state, action)
-            result_states = [
-                result for result in result_states
-                if _is_walkable(grid, result, rows, cols)
-            ]
+            result_states = _results(grid, state, action, rows, cols)
 
             add_step(
                 state,
@@ -227,20 +219,27 @@ def run_and_or_graph_search(grid: List[List[int]],
                 },
             )
 
-            plan = and_search(result_states, path_with_state)
-            if plan is not None:
+            if not result_states:
                 add_step(
                     state,
-                    result_states,
+                    [],
                     path_with_state,
-                    f"[OR_SEARCH] action {action} works -> return [action, plan]",
+                    f"[OR_SEARCH] action {action} has no valid result -> try next action",
+                    is_backtrack=True,
                     extra={
-                        'mode': 'or_success',
+                        'mode': 'invalid_action_result',
                         'state': state,
                         'action': action,
-                        'result_states': list(result_states),
+                        'target': target,
                     },
                 )
+                continue
+
+            plan = and_search(result_states, path_with_state)
+            if plan is not None:
+                # Do not add a visual frame for recursive success unwinding.
+                # Those frames move from goal back to parent states, which makes
+                # the player appear to walk back to Start after solving.
                 return (action, plan)
 
             add_step(
@@ -275,8 +274,50 @@ def run_and_or_graph_search(grid: List[List[int]],
         extra={'mode': 'start', 'initial': start, 'goal': goal},
     )
 
+    if not _is_walkable(grid, start, rows, cols):
+        add_step(
+            start,
+            [],
+            [start],
+            f"[AND_OR_GRAPH_SEARCH] start {start} is not walkable -> return failure",
+            is_backtrack=True,
+            extra={'mode': 'invalid_start', 'state': start},
+        )
+        elapsed = (time.time() - t0) * 1000
+        return PathResult(
+            algo_name='AND-OR',
+            start=start,
+            goal=goal,
+            steps=steps,
+            path=[],
+            total_visited=0,
+            found=False,
+            elapsed_ms=elapsed,
+        )
+
+    if not _is_walkable(grid, goal, rows, cols):
+        add_step(
+            goal,
+            [],
+            [start],
+            f"[AND_OR_GRAPH_SEARCH] goal {goal} is not walkable -> return failure",
+            is_backtrack=True,
+            extra={'mode': 'invalid_goal', 'state': goal},
+        )
+        elapsed = (time.time() - t0) * 1000
+        return PathResult(
+            algo_name='AND-OR',
+            start=start,
+            goal=goal,
+            steps=steps,
+            path=[],
+            total_visited=0,
+            found=False,
+            elapsed_ms=elapsed,
+        )
+
     plan = or_search(start, [])
-    final_path = _plan_to_path(plan, start, goal)
+    final_path = _plan_to_path(plan, grid, start, goal, rows, cols)
 
     elapsed = (time.time() - t0) * 1000
     return PathResult(
