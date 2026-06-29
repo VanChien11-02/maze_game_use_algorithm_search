@@ -89,8 +89,6 @@ def find_path_astar(grid: List[List[int]], start: Tuple[int, int], goal: Tuple[i
 def minimax_search(p_pos: Tuple[int, int],
                    g_pos: Tuple[int, int],
                    depth: int,
-                   alpha: float,
-                   beta: float,
                    is_max_turn: bool,
                    grid: List[List[int]],
                    goal: Tuple[int, int],
@@ -98,7 +96,7 @@ def minimax_search(p_pos: Tuple[int, int],
                    path_so_far: List[Tuple[int, int]],
                    simulated_steps: int) -> Tuple[float, Tuple[int, int]]:
     """
-    Tìm kiếm cây trò chơi Minimax với cắt tỉa Alpha-Beta và hình phạt số bước.
+    Tìm kiếm cây trò chơi Minimax thuần túy (không cắt tỉa Alpha-Beta) và hình phạt số bước.
     """
     if p_pos == goal:
         return 100000.0 + depth - simulated_steps, p_pos
@@ -127,13 +125,10 @@ def minimax_search(p_pos: Tuple[int, int],
         if not moves:
             return -100000.0 - simulated_steps, p_pos
         for mv in moves:
-            val, _ = minimax_search(mv, g_pos, depth - 1, alpha, beta, False, grid, goal, rows, cols, path_so_far, simulated_steps + 1)
+            val, _ = minimax_search(mv, g_pos, depth - 1, False, grid, goal, rows, cols, path_so_far, simulated_steps + 1)
             if val > max_val:
                 max_val = val
                 best_move = mv
-            alpha = max(alpha, val)
-            if beta <= alpha:
-                break
         return max_val, best_move
     else:
         min_val = float('inf')
@@ -142,13 +137,10 @@ def minimax_search(p_pos: Tuple[int, int],
         if not moves:
             return 100000.0 - simulated_steps, g_pos
         for mv in moves:
-            val, _ = minimax_search(p_pos, mv, depth - 1, alpha, beta, True, grid, goal, rows, cols, path_so_far, simulated_steps + 1)
+            val, _ = minimax_search(p_pos, mv, depth - 1, True, grid, goal, rows, cols, path_so_far, simulated_steps + 1)
             if val < min_val:
                 min_val = val
                 best_move = mv
-            beta = min(beta, val)
-            if beta <= alpha:
-                break
         return min_val, best_move
 
 
@@ -217,8 +209,8 @@ def run_minimax(grid: List[List[int]],
                     p_pos = random.choice(valid)
             score_desc = "A* dẫn đường"
         else:
-            # Gặp nguy hiểm, kích hoạt Minimax
-            score, best_move = minimax_search(p_pos, g_pos, 3, -float('inf'), float('inf'), True, grid, goal, rows, cols, path_so_far, step_num)
+            # Gặp nguy hiểm, kích hoạt Minimax thuần túy
+            score, best_move = minimax_search(p_pos, g_pos, 3, True, grid, goal, rows, cols, path_so_far, step_num)
             if best_move and best_move != p_pos:
                 p_pos = best_move
             else:
